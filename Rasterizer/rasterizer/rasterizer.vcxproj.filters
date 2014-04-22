@@ -1,0 +1,95 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="program.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="list.cpp">
+      <Filter>OBJLoader</Filter>
+    </ClCompile>
+    <ClCompile Include="obj_parser.cpp">
+      <Filter>OBJLoader</Filter>
+    </ClCompile>
+    <ClCompile Include="objLoader.cpp">
+      <Filter>OBJLoader</Filter>
+    </ClCompile>
+    <ClCompile Include="string_extra.cpp">
+      <Filter>OBJLoader</Filter>
+    </ClCompile>
+    <ClCompile Include="Global.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="VertexShader.cpp">
+      <Filter>Pipeline\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="PixelShader.cpp">
+      <Filter>Pipeline\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Tessellator.cpp">
+      <Filter>Pipeline\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Rasterizer.cpp">
+      <Filter>Pipeline\Source</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="glut.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="list.h">
+      <Filter>OBJLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="obj_parser.h">
+      <Filter>OBJLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="objLoader.h">
+      <Filter>OBJLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="string_extra.h">
+      <Filter>OBJLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="Global.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Tessellator.h">
+      <Filter>Pipeline\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="VertexShader.h">
+      <Filter>Pipeline\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="PixelShader.h">
+      <Filter>Pipeline\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Rasterizer.h">
+      <Filter>Pipeline\Header</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="objTester\objTester\objTester.sln" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header">
+      <UniqueIdentifier>{b854711f-5270-4221-8cfd-ad3e0e3c7a92}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source">
+      <UniqueIdentifier>{4815f665-ba86-4687-a5fc-6e447d27189e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OBJLoader">
+      <UniqueIdentifier>{bfd11d5d-cf0f-4eac-8ac2-c52db24bc8a6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pipeline">
+      <UniqueIdentifier>{f51d4b23-343b-4eec-8b44-dfdd7125708f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pipeline\Source">
+      <UniqueIdentifier>{987a9cbb-32dd-4830-922b-8cc2b6d6fd0f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pipeline\Header">
+      <UniqueIdentifier>{145a3403-cf1d-4f0b-94bb-1eed722430ee}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="example.txt">
+      <Filter>OBJLoader</Filter>
+    </Text>
+  </ItemGroup>
+</Project>
