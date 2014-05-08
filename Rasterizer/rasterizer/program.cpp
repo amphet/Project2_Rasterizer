@@ -74,23 +74,37 @@ CPixelShader PixelShader;
 // TODO: g_pScreenImage 메모리를 채우면 됩니다.
 void makeCheckImage(void)
 {
-	memset(g_pScreenImage, 100, sizeof (g_pScreenImage));
+	printf("adadf\n");
+	memset(g_pScreenImage, 255, sizeof (g_pScreenImage));
 	
-	//Pipeline
+	Update_Camera(g_lpCamera3D);
 
-	Vertex* pVertex_Converted = VertexShader.Launch(g_pVertex);
-	Triangular_Face* pFace_Converted = Tessellator.Launch(objData->faceList);
+	Vertex* pVertex_Converted = VertexShader.Launch(objData);
 	
+//	Triangular_Face* pFace_Converted = Tessellator.Launch(objData->faceList);
+	//objData->vertexList
+
 	//?? = Rasterizer.Launch(pVertex_Converted , pFace_Converted);
 	//래스터라이저의 리턴값을 뭘로 줘야할지 몰라서 일단은 void로 놓음
 	
-	PixelShader.Launch();
+//	PixelShader.Launch();
 	//마찬가지로 input/output몰라서 일단 void로 처리
 
 
-	ScreenBufferSet();//이 함수에서 g_pScreenImage배열에 값을 집어넣는 처리를 하면될듯함
+	//ScreenBufferSet();//이 함수에서 g_pScreenImage배열에 값을 집어넣는 처리를 하면될듯함
+	
+	for (int i = 0; i < objData->faceCount; i++)
+	{
+		int a = objData->faceList[i]->vertex_index[0];
+		int b = objData->faceList[i]->vertex_index[1];
+		int c = objData->faceList[i]->vertex_index[2];
 
 
+		drawLine(VertexShader.m_pPoints[a].x, VertexShader.m_pPoints[a].y, VertexShader.m_pPoints[b].x, VertexShader.m_pPoints[b].y);
+		drawLine(VertexShader.m_pPoints[b].x, VertexShader.m_pPoints[b].y, VertexShader.m_pPoints[c].x, VertexShader.m_pPoints[c].y);
+		drawLine(VertexShader.m_pPoints[c].x, VertexShader.m_pPoints[c].y, VertexShader.m_pPoints[a].x, VertexShader.m_pPoints[a].y);
+		
+	}
 }
 
 
@@ -130,33 +144,11 @@ void ScreenBufferSet()
 void initilize()
 {
 	//set dummy head
-	g_pVertex = new Vertex;
-	g_pVertex->x = 0;
-	g_pVertex->y = 0;
-	g_pVertex->z = 0;
-	g_pVertex->next = NULL;
-
-	g_pTriangular_Face = new Triangular_Face;
-	g_pTriangular_Face->a = 0;
-	g_pTriangular_Face->b = 0;
-	g_pTriangular_Face->c = 0;
-	g_pTriangular_Face->next = NULL;
-
+	
 	objData = new objLoader();
 	objData->load("cube.obj");
-	Vertex* temp = g_pVertex;
-
-	for (int i = 0; i<objData->vertexCount; i++)
-	{
-		obj_vector *o = objData->vertexList[i];
-		temp->next = new Vertex;
-		temp = temp->next;
-		temp->x = o->e[0];
-		temp->y = o->e[1];
-		temp->z = o->e[2];
-		temp->next = NULL;
-
-	}
+	m_ptMouse.x = 320;
+	m_ptMouse.y = 240;
 	
 	
 }
@@ -164,7 +156,7 @@ void initilize()
 
 void finalize()
 {
-
+	/*
 	Vertex* now = g_pVertex;
 	Vertex* prev;
 	while (1)
@@ -184,7 +176,7 @@ void finalize()
 		now2 = now2->next;
 		delete prev2;
 	}
-
+	*/
 	delete objData;
 
 }
@@ -215,8 +207,12 @@ void drawLine(int x0, int y0, int xEnd,int yEnd)
 
 void drawPixel(int x, int y)
 {
-	if (0 <= x && x <= SCREEN_WIDTH && 0 <= y&&y <= SCREEN_HEIGHT)
-		g_pScreenImage[y][x][0] = 255;
+	if (0 <= x && x < SCREEN_WIDTH && 0 <= y&&y < SCREEN_HEIGHT)
+	{
+		g_pScreenImage[y][x][0] = 0;
+		g_pScreenImage[y][x][1] = 0;
+		g_pScreenImage[y][x][2] = 0;
+	}
 }
 
 
@@ -260,7 +256,7 @@ void motion( int x, int y)
 	printf( "[motion] x: %d, y: %d\n", x, y );
 
 
-		
+	Update_Mouse(x, y, g_lpCamera3D);
 
 	
 	/*
@@ -273,7 +269,7 @@ void motion( int x, int y)
 	glPixelZoom( 1.0, 1.0 );*/
 	display();
 	glFlush();
-	
+//	printf("motin end\n");
 
 
 }
@@ -283,6 +279,7 @@ void keyboard( unsigned char key, int x, int y)
 	printf( "[keyboard] key: %c\n", key );
 	
 	HMODULE hCurrentModule = nullptr;
+	_POINT3D v;
 
 	switch( key )
 	{	
@@ -317,10 +314,36 @@ void keyboard( unsigned char key, int x, int y)
 		finalize();
 		exit( 0 );
 		break;
-
+	case 'a':
+		
+		Cross_Vector3D(v, g_lpCamera3D->target, g_lpCamera3D->v);
+		Add_Vector3D(g_lpCamera3D->pos, g_lpCamera3D->pos, v);
+		//g_lpCamera3D->pos.x -= 1.0f;
+		break;
+	case 'd':
+		//g_lpCamera3D->pos.x += 1.0f;
+		
+		Cross_Vector3D(v, g_lpCamera3D->target, g_lpCamera3D->v);
+		Sub_Vector3D(g_lpCamera3D->pos, g_lpCamera3D->pos, v);
+		break;
+	case 'w':
+		Add_Vector3D(g_lpCamera3D->pos, g_lpCamera3D->pos, g_lpCamera3D->target);
+		break;
+	case 's':
+		Sub_Vector3D(g_lpCamera3D->pos, g_lpCamera3D->pos, g_lpCamera3D->target);
+		break;
+	case 'L':
+		g_lpCamera3D->dir.x = 0.0f;
+		g_lpCamera3D->dir.y = 0.0f;
+		g_lpCamera3D->dir.z = 0.0f;
+		g_lpCamera3D->target.x = 0.0f;
+		g_lpCamera3D->target.y = 0.0f;
+		g_lpCamera3D->target.z = 1.0f;
+		break;
 	default:
 		break;
 	}
+	display();
 }
 
 int main( int argc, char** argv)
@@ -340,3 +363,4 @@ int main( int argc, char** argv)
 	glutMainLoop();
 	return 0; 
 }
+
