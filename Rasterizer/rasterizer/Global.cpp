@@ -87,13 +87,13 @@ void Update_Camera(_LPCAMERA3D& lpCamera3D)
 	Mult_MM3D(m_temp, mz_inv, my_inv);
 	Mult_MM3D(m_rot, m_temp, mx_inv);
 	Mult_MM3D(lpCamera3D->mcam, mt_inv, m_rot);
-	printf("CAMERA MATRIX\n");
+	/*printf("CAMERA MATRIX\n");
 	printf("%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n", 
 		lpCamera3D->mcam.m00, lpCamera3D->mcam.m00, lpCamera3D->mcam.m00, lpCamera3D->mcam.m03,
 		lpCamera3D->mcam.m10, lpCamera3D->mcam.m11, lpCamera3D->mcam.m12, lpCamera3D->mcam.m13,
 		lpCamera3D->mcam.m20, lpCamera3D->mcam.m21, lpCamera3D->mcam.m22, lpCamera3D->mcam.m23,
 		lpCamera3D->mcam.m30, lpCamera3D->mcam.m31, lpCamera3D->mcam.m32, lpCamera3D->mcam.m33 );
-	printf("\n");
+	printf("\n");*/
 }
 
 void Mult_MM3D(_MATRIX3D& m, _MATRIX3D& m1, _MATRIX3D& m2)

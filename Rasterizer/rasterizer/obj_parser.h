@@ -15,6 +15,7 @@ typedef struct obj_face
 	int texture_index[MAX_VERTEX_COUNT];
 	int vertex_count;
 	int material_index;
+	bool bIsBackface;
 };
 
 typedef struct obj_sphere
