@@ -76,6 +76,7 @@
       <PrecompiledHeader />
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <Optimization>MaxSpeed</Optimization>
     </ClCompile>
     <Link>
       <OutputFile>$(OutDir)rasterizer.exe</OutputFile>
@@ -89,6 +90,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="EdgeTable.cpp" />
     <ClCompile Include="Global.cpp" />
     <ClCompile Include="list.cpp" />
     <ClCompile Include="objLoader.cpp" />
@@ -101,6 +103,7 @@
     <ClCompile Include="VertexShader.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="EdgeTable.h" />
     <ClInclude Include="Global.h" />
     <ClInclude Include="glut.h" />
     <ClInclude Include="list.h" />

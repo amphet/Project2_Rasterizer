@@ -33,6 +33,7 @@ global.h : 전역변수, 구조체정의
 #include "Tessellator.h"
 #include "Rasterizer.h"
 #include "PixelShader.h"
+#include "EdgeTable.h"
 
 // Constants Directive
 //
@@ -64,14 +65,22 @@ inline int myRound(const float a) { return int(a + 0.5); }
 void initilize();//초기화작업 = input assembler. 지금은 obj파일 읽어서 저장하는것만 집어넣음
 void finalize();//종료작업. 동적할당 삭제처리 여기서 하면 될것
 void ScreenBufferSet();
+void Benchmark();
+void PipelineCheck();
+
 float fMaxZ;
 float fMinZ;
 
-objLoader *objData;
+bool bIsScanline;
+bool bIsWireFrame;
+
+
 CVertexShader VertexShader;
 CTessellator Tessellator;
 CRasterizer Rasterizer;
 CPixelShader PixelShader;
+CEdgeTable EdgeTable(&VertexShader);
+
 int g_cnt;
 
 
@@ -102,200 +111,498 @@ void makeCheckImage(void)
 	fMaxZ = VertexShader.m_fMaxZ;
 	fMinZ = VertexShader.m_fMinZ;
 
-
-	//backface culling
 	int cnt = 0;
-	for (int i = 0; i < objData->faceCount; i++)
-	{
-		int a = objData->faceList[i]->vertex_index[0];
-		int b = objData->faceList[i]->vertex_index[1];
-		int c = objData->faceList[i]->vertex_index[2];
-		
-		
-		
-		_POINT3D p1, p2, p3,N;
-		p1.x = VertexShader.m_pPoints[a].x;
-		p1.y = VertexShader.m_pPoints[a].y;
-		p1.z = VertexShader.m_pPoints[a].z;
 
-		p2.x = VertexShader.m_pPoints[b].x;
-		p2.y = VertexShader.m_pPoints[b].y;
-		p2.z = VertexShader.m_pPoints[b].z;
 
-		p3.x = VertexShader.m_pPoints[c].x;
-		p3.y = VertexShader.m_pPoints[c].y;
-		p3.z = VertexShader.m_pPoints[c].z;
+	_POINT3D p1, p2, p3, N;
+	_POINT3D v1, v2;
+	_POINT3D Centroid,L;
 
-		
-		_POINT3D v1, v2;
-		v1.x = p2.x - p1.x;
-		v1.y = p2.y - p1.y;
-		v1.z = p2.z - p1.z;
-		v1.w = 1;
+	_POINT3D *MinVtx, *Vtx2, *Vtx3;
 
-		v2.x = p3.x - p1.x;
-		v2.y = p3.y - p1.y;
-		v2.z = p3.z - p1.z;
-		v2.w = 1;
+	float aa, bb, cc, dd;
+	int a, b, c;
 
-		Cross_Vector3D(N, v1, v2);
-		_POINT3D S, avg;
-		
-		//g_lpCamera3D->
-		//Sub_Vector3D(S, g_lpCamera3D->pos, p1);
-		
-		//float check = N.x*p1.x + N.y*p1.y + N.z*p1.z;
+	float fMinInterX, fMaxInterX;
 
-		if (N.z > 0){
-			objData->faceList[i]->bIsBackface = true;
-			cnt++;
-		}
-		else objData->faceList[i]->bIsBackface = false;
-
-	}
-	g_cnt = cnt;
-	//z buffering & rasterize
+	
 	for (int i = 0; i < 640; i++)
 	{
 		for (int j = 0; j < 480; j++)
 			g_pZBuffer[j][i] = FLT_MAX;
 	}
-	//memset(g_pZBuffer, FLT_MAX, sizeof (g_pZBuffer));
 
-//	printf("%f\n", fMaxZ);
-//	printf("is %d\n", objData->faceCount);
-	for (int i = 0; i < objData->faceCount; i++)
+	//if (VertexShader.m_bIsMultiThread == false)
 	{
-	//	printf("at %d\n", i);
-		if (objData->faceList[i]->bIsBackface) continue;//후면이면 안해도될것
-
-		int a = objData->faceList[i]->vertex_index[0];
-		int b = objData->faceList[i]->vertex_index[1];
-		int c = objData->faceList[i]->vertex_index[2];
-
-
-
-		_POINT3D p1, p2, p3, N;
-		p1.x = VertexShader.m_pPoints[a].x;
-		p1.y = VertexShader.m_pPoints[a].y;
-		p1.z = VertexShader.m_pPoints[a].z;
-
-		p2.x = VertexShader.m_pPoints[b].x;
-		p2.y = VertexShader.m_pPoints[b].y;
-		p2.z = VertexShader.m_pPoints[b].z;
-
-		p3.x = VertexShader.m_pPoints[c].x;
-		p3.y = VertexShader.m_pPoints[c].y;
-		p3.z = VertexShader.m_pPoints[c].z;
-
-		float maxX, minX, maxY, minY;
-
-		maxX = max(p1.x, p2.x);
-		maxX = max(maxX, p3.x);
-		if (maxX > 640) maxX = 638;
-
-		maxY = max(p1.y, p2.y);
-		maxY = max(maxY, p3.y);
-		if (maxY > 480) maxY = 478;
-
-		minX = min(p1.x, p2.x);
-		minX = min(minX, p3.x);
-		if (minX < 0) minX = 1;
-
-		minY = min(p1.y, p2.y);
-		minY = min(minY, p3.y);
-
-		if (minY < 0)minY = 1;
-
-		//drawLine(p1.x, p1.y, p2.x, p2.y);
-		//drawLine(p2.x, p2.y, p3.x, p3.y);
-		//drawLine(p3.x, p3.y, p1.x, p1.y);
-		
-		//법선벡터
-		_POINT3D v1, v2;
-		v1.x = p2.x - p1.x;
-		v1.y = p2.y - p1.y;
-		//z값 계산 필요
-		v1.z = p2.z - p1.z;
-		v1.w = 1;
-
-		v2.x = p3.x - p1.x;
-		v2.y = p3.y - p1.y;
-		v2.z = p3.z - p1.z;
-		v2.w = 1;
-
-		Cross_Vector3D(N, v1, v2);
-
-		
-		
-		//lighting value 계산
-		//편의상 백색 물체에 백색광이라고 함. 
-		_POINT3D Centroid;
-		Centroid.x = (p1.x + p2.x + p3.x) / 3;
-		Centroid.y = (p1.y + p2.y + p3.y) / 3;
-		Centroid.z = (p1.z + p2.z + p3.z) / 3;
-
-		_POINT3D LightVec,L;
-		Sub_Vector3D(LightVec, VertexShader.m_lighting, Centroid);
-		float size = Length_Vector3D(LightVec);
-		L.x = LightVec.x / size;
-		L.y = LightVec.y / size;
-		L.z = LightVec.z / size;
-		float dist = sqrt((VertexShader.m_lighting.x - Centroid.x)*(VertexShader.m_lighting.x - Centroid.x)
-			+ (VertexShader.m_lighting.y - Centroid.y)*(VertexShader.m_lighting.y - Centroid.y)
-			+ (VertexShader.m_lighting.z - Centroid.z)*(VertexShader.m_lighting.z - Centroid.z)
-			);
-
-
-		float ka = 0.8;
-		float kd = 0.021;
-
-		int ia = 200;
-		int id = 155;
-
-		float ar = ka*ia;
-
-		float dr = kd*id*
-			(N.x*L.x +
-			N.y*L.y +
-			N.z*L.z);
-
-		float light = ar + dr / (0 + 0.03 * dist + 0 * dist*dist);
-		int colour = round(light);
-		if (colour > 255) colour = 255;
-		else if (colour < 0) colour = 0;
-
-
-		for (int y = round(minY - 1); y < round(maxY + 1); y++)
+		for (int i = 0; i < objData->faceCount; i++)
 		{
-			for (int x = round(minX - 1); x < round(maxX + 1); x++)
-			{
-				float aa, bb, cc;
-				aa = (p1.y - p2.y)*x + (p2.x - p1.x)*y + p1.x*p2.y - p2.x*p1.y;
-				bb = (p2.y - p3.y)*x + (p3.x - p2.x)*y + p2.x*p3.y - p3.x*p2.y;
-				cc = (p3.y - p1.y)*x + (p1.x - p3.x)*y + p3.x*p1.y - p1.x*p3.y;
+			a = objData->faceList[i]->vertex_index[0];
+			b = objData->faceList[i]->vertex_index[1];
+			c = objData->faceList[i]->vertex_index[2];
 
-				if (aa <  0 && bb  <   0 && cc  < 0)
+
+
+
+			p1.x = VertexShader.m_pPoints[a].x;
+			p1.y = VertexShader.m_pPoints[a].y;
+			p1.z = VertexShader.m_pPoints[a].z;
+
+			p2.x = VertexShader.m_pPoints[b].x;
+			p2.y = VertexShader.m_pPoints[b].y;
+			p2.z = VertexShader.m_pPoints[b].z;
+
+			p3.x = VertexShader.m_pPoints[c].x;
+			p3.y = VertexShader.m_pPoints[c].y;
+			p3.z = VertexShader.m_pPoints[c].z;
+
+
+			
+			v1.x = p2.x - p1.x;
+			v1.y = p2.y - p1.y;
+			v1.z = p2.z - p1.z;
+			v1.w = 1;
+
+			v2.x = p3.x - p1.x;
+			v2.y = p3.y - p1.y;
+			v2.z = p3.z - p1.z;
+			v2.w = 1;
+
+			Cross_Vector3D(N, v1, v2);
+			//_POINT3D S, avg;
+
+			//g_lpCamera3D->
+			//Sub_Vector3D(S, g_lpCamera3D->pos, p1);
+
+			//float check = N.x*p1.x + N.y*p1.y + N.z*p1.z;
+			VertexShader.m_pNormVec[i].x = N.x;
+			VertexShader.m_pNormVec[i].y = N.y;
+			VertexShader.m_pNormVec[i].z = N.z;
+			VertexShader.m_pNormVec[i].w = N.w;
+			Normalize_Vector3D(VertexShader.m_pNormVec[i]);
+
+			//hidden face culling
+			if (N.z > 0){
+				objData->faceList[i]->bIsBackface = true;
+
+				cnt++;
+			}
+			else objData->faceList[i]->bIsBackface = false;
+
+			if (objData->faceList[i]->bIsBackface) continue;//후면이면 안해도될것
+
+			float maxX, minX, maxY, minY;
+
+			maxX = max(p1.x, p2.x);
+			maxX = max(maxX, p3.x);
+			//if (maxX > 640) maxX = 638;
+
+			maxY = max(p1.y, p2.y);
+			maxY = max(maxY, p3.y);
+			//if (maxY > 480) maxY = 478;
+
+			minX = min(p1.x, p2.x);
+			minX = min(minX, p3.x);
+		//	if (minX < 0) minX = 1;
+
+			minY = min(p1.y, p2.y);
+			minY = min(minY, p3.y);
+
+			
+
+			if (bIsWireFrame)
+			{
+				drawLine(p1.x, p1.y, p2.x, p2.y);
+				drawLine(p2.x, p2.y, p3.x, p3.y);
+				drawLine(p3.x, p3.y, p1.x, p1.y);
+				continue;
+			}
+			
+
+			//lighting value 계산
+			//조명색상 수정은 drawpixelcolor()
+			N.x = VertexShader.m_pNormVec[i].x;
+			N.y = VertexShader.m_pNormVec[i].y;
+			N.z = VertexShader.m_pNormVec[i].z;
+			N.w = VertexShader.m_pNormVec[i].w;
+
+			
+			Centroid.x = (p1.x + p2.x + p3.x) / 3;
+			Centroid.y = (p1.y + p2.y + p3.y) / 3;
+			Centroid.z = (p1.z + p2.z + p3.z) / 3;
+
+			Sub_Vector3D(L, VertexShader.m_lighting, Centroid);
+			Normalize_Vector3D(L);
+
+			float dist = sqrt((VertexShader.m_lighting.x - Centroid.x)*(VertexShader.m_lighting.x - Centroid.x)
+				+ (VertexShader.m_lighting.y - Centroid.y)*(VertexShader.m_lighting.y - Centroid.y)
+				+ (VertexShader.m_lighting.z - Centroid.z)*(VertexShader.m_lighting.z - Centroid.z)
+				);
+
+
+			float ka = 0.45;
+			float kd = 0.9;
+
+			int ia = 255;
+			int id = 255;
+
+			float ar = ka*ia;
+
+			float dr = kd*id*(N.x*L.x + N.y*L.y + N.z*L.z);
+
+
+			float light = (ar + dr) / (0 + 0.003*dist); //)+ 0.000018 * dist*dist);
+			int colour = round(light);
+			if (colour > 255) colour = 255;
+			else if (colour < 0) colour = 0;
+
+
+
+			////////////////////////
+			//rasterize + zbuffer
+			if (!bIsScanline)
+			{
+				bool hit = false;
+				char mode = 0;
+
+
+				for (int y = round(minY) - 1; y < round(maxY) + 1; y++)
 				{
 
-					float dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
-					if (dd < g_pZBuffer[y][x])
+					hit = false;
+					if (y < 0) continue;
+					if (y > SCREEN_HEIGHT) break;
+					for (int x = round(minX) - 1; x < round(maxX) + 1; x++)
 					{
-						//lighting
-						
-						drawPixelColor(x, y, colour);
-						g_pZBuffer[y][x] = dd;
+
+						aa = (p1.y - p2.y)*x + (p2.x - p1.x)*y + p1.x*p2.y - p2.x*p1.y;
+						bb = (p2.y - p3.y)*x + (p3.x - p2.x)*y + p2.x*p3.y - p3.x*p2.y;
+						cc = (p3.y - p1.y)*x + (p1.x - p3.x)*y + p3.x*p1.y - p1.x*p3.y;
+
+						if (aa <  0 && bb  <   0 && cc  < 0)
+						{
+							if (x < 0 || SCREEN_WIDTH <= x || y < 0 || SCREEN_HEIGHT <= y) continue;
+							hit = true;
+							dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
+							if (dd < g_pZBuffer[y][x])
+							{
+								//아래 주석 해제하면 pixel단위 lighting
+								/*
+
+								//lighting
+								_POINT3D L,NOW;
+								Init_Vector3D(NOW, x, y, dd);
+
+								Sub_Vector3D(L, VertexShader.m_lighting, NOW);
+								Normalize_Vector3D(L);
+
+								float dist = sqrt((VertexShader.m_lighting.x - NOW.x)*(VertexShader.m_lighting.x - NOW.x)
+								+ (VertexShader.m_lighting.y - NOW.y)*(VertexShader.m_lighting.y - NOW.y)
+								+ (VertexShader.m_lighting.z - NOW.z)*(VertexShader.m_lighting.z - NOW.z)
+								);
+
+
+								float ka = 0.5;
+								float kd = 0.9;
+
+								int ia = 255;
+								int id = 255;
+
+								float ar = ka*ia;
+
+								float dr = kd*id*(N.x*L.x + N.y*L.y + N.z*L.z);
+								float light = (ar + dr) / (0 + 0.0027*dist + 0 * dist*dist);
+								int colour = round(light);
+								if (colour > 255) colour = 255;
+								else if (colour < 0) colour = 0;
+								*/
+
+
+								//ㅡㅡ
+								drawPixelColor(x, y, colour);
+								g_pZBuffer[y][x] = dd;
+							}
+
+
+						}
+						else
+						{
+							if (hit)
+								break;
+						}
+
+
+
 					}
+				}
+			}
+			else
+			{
+				
+				////////////
+				EdgeTable.Initialize(i);
+
+				if (EdgeTable.m_EdgeTable.empty())
+				{
+					printf("????????????????\n");
+					continue;
+				}
+				float bucket[3] = { 0, 0, 0 };
+				char cnt = 0;
+				for (std::list<EdgeIndex>::iterator pos = EdgeTable.m_EdgeTable.begin(); pos != EdgeTable.m_EdgeTable.end(); pos++)
+				{
+					bucket[cnt] = pos->y;
+					cnt++;
+				}
+				//printf("%f %f %f\n", bucket[0], bucket[1], bucket[2]);
+
+				float k1, k2, k3;
+				
+				//z값 보간
+				//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
+				//-> dd = k1*x + k2+y + k3으로
+				k1 = -(N.x / N.z);
+				k2 = -(N.y / N.z);
+				k3 = N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
+				float from, to;
+
+				if (bucket[1] == 0)
+				{
+					for (std::list<EdgeEntryWrapper>::iterator pos = EdgeTable.m_EdgeTable.front().Entry.begin(); pos != EdgeTable.m_EdgeTable.front().Entry.end(); pos++)
+					{
+						EdgeEntryWrapper ITEM;
+						ITEM.pEntry = pos->pEntry;
+
+						EdgeTable.m_MergeList.push_back(ITEM);
+					}
+
+
+					EdgeEntry* Left;
+					EdgeEntry* Right;
+					EdgeEntry* tmp;
+					Left = EdgeTable.m_MergeList.front().pEntry;
+					Right = EdgeTable.m_MergeList.back().pEntry;
+					if (Left->xmin > Right->xmin)
+					{
+						tmp = Left;
+						Left = Right;
+						Right = tmp;
+					}
+
+					int xx, yy;
+					float dd;
+
+					///clipping??
+					//if (maxY > SCREEN_HEIGHT) maxY = SCREEN_HEIGHT;
+
+					///////
+					for (float y = bucket[0]; y < maxY; y++)
+					{
+						if (y < 0) continue;
+						if (y >= SCREEN_HEIGHT) break;
 					
+						if (Left->xmin - 1 < 0) from = 0;
+						else from = Left->xmin - 1;
+						if (SCREEN_WIDTH <= Right->xmin + 1) to = SCREEN_WIDTH;
+						else to = Right->xmin + 1;
+						for (float x = from ; x <= to ; x++)
+						{
+							//if (x < 0) continue;
+							//if (x >= SCREEN_WIDTH) break;
+							xx = round(x);
+							yy = round(y);
+							//dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
+							//dd = -(N.x/N.z)*x + N.x*p3.x/N.z - (N.y/N.z)*y + N.y*p3.y/N.z + p3.z;
+							//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
+							dd = k1*xx + k2*yy + k3;
+							
+
+							
+
+						//	if (xx < 0 || SCREEN_WIDTH <= xx || yy < 0 || SCREEN_HEIGHT <= yy) continue;
+							if (dd < g_pZBuffer[yy][xx])
+							{
+								drawPixelColor(xx, yy, colour);
+								g_pZBuffer[yy][xx] = dd;
+							}
+
+						}
+						Left->xmin = Left->xmin + Left->incr;
+						Right->xmin = Right->xmin + Right->incr;
+
+						if (Left->xmin > Right->xmin)
+						{
+							tmp = Left;
+							Left = Right;
+							Right = tmp;
+						}
+					}
 
 				}
-			
-				
+				else
+				{
+					for (std::list<EdgeEntryWrapper>::iterator pos = EdgeTable.m_EdgeTable.front().Entry.begin(); pos != EdgeTable.m_EdgeTable.front().Entry.end(); pos++)
+					{
+						EdgeEntryWrapper ITEM;
+						ITEM.pEntry = pos->pEntry;
+
+						EdgeTable.m_MergeList.push_back(ITEM);
+					}
+
+
+					EdgeEntry* Left;
+					EdgeEntry* Right;
+					EdgeEntry* tmp;
+					Left = EdgeTable.m_MergeList.front().pEntry;
+					Right = EdgeTable.m_MergeList.back().pEntry;
+					if (Left->xmin > Right->xmin)
+					{
+						tmp = Left;
+						Left = Right;
+						Right = tmp;
+					}
+
+					int xx, yy;
+					float dd;
+					for (float y = bucket[0]; y < bucket[1]; y++)
+					{
+						if (y < 0) continue;
+						if (y >= SCREEN_HEIGHT) break;
+						
+						
+						if (Left->xmin - 1 < 0) from = 0;
+						else from = Left->xmin - 1;
+						if (SCREEN_WIDTH <= Right->xmin + 1) to = SCREEN_WIDTH;
+						else to = Right->xmin + 1;
+
+						for (float x = from; x <= to; x++)
+						{
+							//if (x < 0) continue;
+							//if (x >= SCREEN_WIDTH) break;
+
+							xx = round(x);
+							yy = round(y);
+							//dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
+							//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
+							dd = k1*xx + k2*yy + k3;
+
+
+							
+
+
+							//if (xx < 0 || SCREEN_WIDTH <= xx || yy < 0 || SCREEN_HEIGHT <= yy) continue;
+							if (dd < g_pZBuffer[yy][xx])
+							{
+								drawPixelColor(xx, yy, colour);
+								g_pZBuffer[yy][xx] = dd;
+							}
+
+						}
+						Left->xmin = Left->xmin + Left->incr;
+						Right->xmin = Right->xmin + Right->incr;
+
+						if (Left->xmin > Right->xmin)
+						{
+							tmp = Left;
+							Left = Right;
+							Right = tmp;
+						}
+					}
+
+					Left = EdgeTable.m_MergeList.front().pEntry;
+					Right = EdgeTable.m_MergeList.back().pEntry;
+					if (Left->ymax == bucket[1]) EdgeTable.m_MergeList.pop_front();
+					if (Right->ymax == bucket[1]) EdgeTable.m_MergeList.pop_back();
+
+					for (std::list<EdgeEntryWrapper>::iterator pos = EdgeTable.m_EdgeTable.back().Entry.begin(); pos != EdgeTable.m_EdgeTable.back().Entry.end(); pos++)
+					{
+						EdgeEntryWrapper ITEM;
+						ITEM.pEntry = pos->pEntry;
+
+						EdgeTable.m_MergeList.push_back(ITEM);
+					}
+
+					Left = EdgeTable.m_MergeList.front().pEntry;
+					Right = EdgeTable.m_MergeList.back().pEntry;
+					if (Left->xmin > Right->xmin)
+					{
+						tmp = Left;
+						Left = Right;
+						Right = tmp;
+					}
+
+					for (float y = bucket[1]; y < maxY; y++)
+					{
+						if (y < 0) continue;
+						if (y >= SCREEN_HEIGHT) break;
+
+
+						if (Left->xmin - 1 < 0) from = 0;
+						else from = Left->xmin - 1;
+						if (SCREEN_WIDTH <= Right->xmin + 1) to = SCREEN_WIDTH;
+						else to = Right->xmin + 1;
+
+						for (float x = from ; x <= to ; x++)
+						{
+							if (x < 0) continue;
+							if (x >= SCREEN_WIDTH) break;
+
+							xx = round(x);
+							yy = round(y);
+
+							//dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
+							//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
+							dd = k1*xx + k2*yy + k3;
+							//if (xx < 0 || SCREEN_WIDTH <= xx || yy < 0 || SCREEN_HEIGHT <= yy) continue;
+							if (dd < g_pZBuffer[yy][xx])
+							{
+								drawPixelColor(xx, yy, colour);
+								g_pZBuffer[yy][xx] = dd;
+							}
+
+						}
+						Left->xmin = Left->xmin + Left->incr;
+						Right->xmin = Right->xmin + Right->incr;
+
+						if (Left->xmin > Right->xmin)
+						{
+							tmp = Left;
+							Left = Right;
+							Right = tmp;
+						}
+					}
+
+				}
+
+
+
+
+
+				EdgeTable.finalize();
 
 			}
+
+
+
+
+
+
+
+
+
+			///////////////////////
+			
 		}
-		
 	}
+//	else
+	{
+
+	}
+
+	
+	g_cnt = cnt;
+
+
+
 }
 
 
@@ -337,9 +644,14 @@ void initilize()
 	//set dummy head
 	
 	objData = new objLoader();
+	//objData->load("symphysis.obj");
 	objData->load("teapot.obj");
+
 	m_ptMouse.x = 320;
 	m_ptMouse.y = 240;
+	bIsScanline = false;
+	bIsWireFrame = false;
+
 	
 	
 }
@@ -410,8 +722,8 @@ void drawPixelColor(int x, int y, int z)
 
 		byte colour = (byte)z;
 		g_pScreenImage[y][x][0] = colour;
-		g_pScreenImage[y][x][1] = colour;
-		g_pScreenImage[y][x][2] = colour;
+		g_pScreenImage[y][x][1] = 0;
+		g_pScreenImage[y][x][2] = 0;
 	}
 
 }
@@ -516,13 +828,7 @@ void keyboard( unsigned char key, int x, int y)
 	
 	HMODULE hCurrentModule = nullptr;
 	_POINT3D v;
-	int i;
-	float angleX = 0;
-	float angleY = 0;
-	float theta = 0;
-	float slice = 0.02f;
-	DWORD dwStartTime;
-	DWORD dwEndTime;
+	
 	
 	switch( key )
 	{	
@@ -575,7 +881,7 @@ void keyboard( unsigned char key, int x, int y)
 	case 's':
 		Sub_Vector3D(g_lpCamera3D->pos, g_lpCamera3D->pos, g_lpCamera3D->target);
 		break;
-	case 'L':
+	case 'l':
 		g_lpCamera3D->dir.x = 0.0f;
 		g_lpCamera3D->dir.y = 0.0f;
 		g_lpCamera3D->dir.z = 0.0f;
@@ -584,11 +890,106 @@ void keyboard( unsigned char key, int x, int y)
 		g_lpCamera3D->target.z = 1.0f;
 		break;
 	case '1':
-		printf("Camera rotation start!!\n");
-		dwStartTime = timeGetTime();
-		for (i = 0; i < (2 * 3.141592) / slice; i++)
+		printf("Sequential Pipeline Test(inside check)\n");
+		VertexShader.m_bIsMultiThread = false;
+		bIsScanline = false;
+		Benchmark();
+		break;
+	case '2':
+		printf("Sequential Pipeline Test(Scanline)\n");
+		VertexShader.m_bIsMultiThread = false;
+		bIsScanline = true;
+		Benchmark();
+		break;
+	case '3':
+		printf("Parallel Pipeline Test(inside check)\n");
+		VertexShader.m_bIsMultiThread = true;
+		bIsScanline = false;
+		Benchmark();
+		break;
+	case '4':
+		printf("Wire Frame Rendering Test\n");
+		VertexShader.m_bIsMultiThread = false;
+		bIsScanline = false;
+		bIsWireFrame = true;
+		Benchmark();
+		break;
+	case '9':
+		printf("Serial Pipeline Test\n");
+		VertexShader.m_bIsMultiThread = false;
+		PipelineCheck();
+		break;
+	case '0':
+		printf("Parallel Pipeline Test\n");
+		VertexShader.m_bIsMultiThread = true;
+		PipelineCheck();
+		break;
+
+	default:
+		break;
+		
+	}
+	display();
+	VertexShader.m_bIsMultiThread = false;
+	bIsScanline = false;
+	bIsWireFrame = false;
+}
+
+int main( int argc, char** argv)
+{
+	initilize();
+
+	glutInit( &argc, argv );
+	glutInitDisplayMode( GLUT_SINGLE | GLUT_RGBA );
+	glutInitWindowSize( SCREEN_WIDTH, SCREEN_HEIGHT );
+	glutInitWindowPosition( 100, 100 );
+	glutCreateWindow( argv[0] );
+	init();
+	glutDisplayFunc( display );
+	glutReshapeFunc( reshape );
+	glutKeyboardFunc( keyboard );
+	glutMotionFunc( motion );
+	glutMainLoop();
+	return 0; 
+}
+
+void Benchmark()
+{
+	int i,k;
+	float angleX = 0;
+	float angleY = 0;
+	float theta = 0;
+	
+	float slice = 0.02f;
+	DWORD dwStartTime;
+	DWORD dwEndTime;
+	DWORD dwTotal = 0;
+
+	int iter = (2 * 3.141592) / slice;
+	
+	
+	
+	//g_lpCamera3D->pos.y -= 50;
+	float dist = Length_Vector3D(g_lpCamera3D->pos);
+	
+	
+	
+	//dist = dist * 2;
+	
+	//for (k = 0; k < 3; k++)
+	{
+
+		g_lpCamera3D->pos.x = 0;
+		g_lpCamera3D->pos.y = 0;
+		g_lpCamera3D->pos.z = dist;
+		
+
+		
+		//initDist = initDist/2;
+		
+		for (i = 0; i < iter; i++)
 		{
-			
+			//printf("i : %d\n", i);
 			g_lpCamera3D->dir.y += slice;
 			if (g_lpCamera3D->dir.y >= 2 * 3.141592)
 			{
@@ -611,38 +1012,32 @@ void keyboard( unsigned char key, int x, int y)
 			g_lpCamera3D->target.z = cos(g_lpCamera3D->dir.x)*cos(g_lpCamera3D->dir.y);
 			g_lpCamera3D->target.y = sin(-g_lpCamera3D->dir.x);
 			theta += slice;
-			g_lpCamera3D->pos.x = -130*sin(theta);
-			g_lpCamera3D->pos.z = -130*cos(theta);
-
+			g_lpCamera3D->pos.x = -dist*sin(theta);
+			g_lpCamera3D->pos.z = -dist*cos(theta);
+			
+			dwStartTime = timeGetTime();
 			display();
+			dwTotal += timeGetTime() - dwStartTime;
+			//printf("%f %f %f\n", g_lpCamera3D->pos.x, g_lpCamera3D->pos.y, g_lpCamera3D->pos.z);
 		}
-		dwEndTime = timeGetTime();
-
-		printf("elapsed time : %d ms", dwEndTime - dwStartTime);
-		break;
-
-	default:
-		break;
+		//dist = dist *0.5;
 		
+			
 	}
-	display();
+	
+//	printf("frame : %d\nelapsed time : %d ms\nfps : %f\n", iter * 3, dwTotal, (float)(iter * 3) / dwTotal*1000);
+	printf("frame : %d\nelapsed time : %d ms\nfps : %f\n", iter, dwTotal, (float)(iter) / dwTotal * 1000);
+		
 }
 
-int main( int argc, char** argv)
+void PipelineCheck()
 {
-	initilize();
+	DWORD dwStartTime;
+	DWORD dwEndTime;
+	dwStartTime = timeGetTime();
+	display();
 
-	glutInit( &argc, argv );
-	glutInitDisplayMode( GLUT_SINGLE | GLUT_RGBA );
-	glutInitWindowSize( SCREEN_WIDTH, SCREEN_HEIGHT );
-	glutInitWindowPosition( 100, 100 );
-	glutCreateWindow( argv[0] );
-	init();
-	glutDisplayFunc( display );
-	glutReshapeFunc( reshape );
-	glutKeyboardFunc( keyboard );
-	glutMotionFunc( motion );
-	glutMainLoop();
-	return 0; 
+	dwEndTime = timeGetTime();
+
+	printf("elapsed time : %d ms\n", dwEndTime - dwStartTime);
 }
-

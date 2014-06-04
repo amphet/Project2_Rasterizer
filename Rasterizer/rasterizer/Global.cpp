@@ -6,7 +6,7 @@
 
 Vertex* g_pVertex;
 Triangular_Face* g_pTriangular_Face;
-
+objLoader *objData;
 
 
 Vertex* getMeshByIndex(int i)
@@ -35,6 +35,21 @@ void Mat3D_Mul(Matrix3D& m, Matrix3D& m1, Matrix3D& m2)
 				m.v[i][j] = m1.v[i][k] * m2.v[k][j];
 		}
 	}
+}
+
+float Dot_Vector3D(_POINT3D v1, _POINT3D v2)
+{
+	return (v1.x*v2.x + v1.y*v2.y + v1.z*v2.z);
+}
+
+
+void Normalize_Vector3D(_POINT3D& v)
+{
+	float len = sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
+	v.x = v.x / len;
+	v.y = v.y / len;
+	v.z = v.z / len;
+	v.w = 1.0f;
 }
 
 void Mat3D_Vec_Mul(Vector& p, Vector& v, Matrix3D& m)

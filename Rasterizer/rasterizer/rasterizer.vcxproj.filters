@@ -31,6 +31,9 @@
     <ClCompile Include="Rasterizer.cpp">
       <Filter>Pipeline\Source</Filter>
     </ClCompile>
+    <ClCompile Include="EdgeTable.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="glut.h">
@@ -62,6 +65,9 @@
     </ClInclude>
     <ClInclude Include="Rasterizer.h">
       <Filter>Pipeline\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="EdgeTable.h">
+      <Filter>Header</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
