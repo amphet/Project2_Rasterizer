@@ -68,8 +68,8 @@ void ScreenBufferSet();
 void Benchmark();
 void PipelineCheck();
 
-float fMaxZ;
-float fMinZ;
+//float fMaxZ;
+//float fMinZ;
 
 bool bIsScanline;
 bool bIsWireFrame;
@@ -82,7 +82,20 @@ CPixelShader PixelShader;
 CEdgeTable EdgeTable(&VertexShader);
 
 int g_cnt;
-
+//
+//typedef struct __EdgeEntry
+//{
+//	float ymax;
+//	float xmin;
+//	float incr;
+//	__EdgeEntry *pNext;
+//} EdgeEntry_NEW;
+//
+//typedef struct __EdgeEntryWrapper
+//{
+//	float fScanLineNum;
+//	EdgeEntry_NEW *entry;
+//}EdgeEntryWrapper_NEW;
 
 // TODO: g_pScreenImage 메모리를 채우면 됩니다.
 void makeCheckImage(void)
@@ -108,8 +121,8 @@ void makeCheckImage(void)
 
 
 	//ScreenBufferSet();//이 함수에서 g_pScreenImage배열에 값을 집어넣는 처리를 하면될듯함
-	fMaxZ = VertexShader.m_fMaxZ;
-	fMinZ = VertexShader.m_fMinZ;
+//	fMaxZ = VertexShader.m_fMaxZ;
+	//fMinZ = VertexShader.m_fMinZ;
 
 	int cnt = 0;
 
@@ -118,7 +131,8 @@ void makeCheckImage(void)
 	_POINT3D v1, v2;
 	_POINT3D Centroid,L;
 
-	_POINT3D *MinVtx, *Vtx2, *Vtx3;
+	//EdgeEntryWrapper_NEW EdgeTable[2];
+//	EdgeEntry_NEW pEdgeEntry1, pEdgeEntry2, pEdgeEntry3;
 
 	float aa, bb, cc, dd;
 	int a, b, c;
@@ -126,12 +140,12 @@ void makeCheckImage(void)
 	float fMinInterX, fMaxInterX;
 
 	
-	for (int i = 0; i < 640; i++)
+	for (int i = 0; i < 480; i++)
 	{
-		for (int j = 0; j < 480; j++)
-			g_pZBuffer[j][i] = FLT_MAX;
+		for (int j = 0; j < 640; j++)
+			g_pZBuffer[i][j] = FLT_MAX;
 	}
-
+	
 	//if (VertexShader.m_bIsMultiThread == false)
 	{
 		for (int i = 0; i < objData->faceCount; i++)
@@ -238,7 +252,7 @@ void makeCheckImage(void)
 				+ (VertexShader.m_lighting.z - Centroid.z)*(VertexShader.m_lighting.z - Centroid.z)
 				);
 
-
+			//teapot(0.45,0.9)
 			float ka = 0.45;
 			float kd = 0.9;
 
@@ -250,8 +264,8 @@ void makeCheckImage(void)
 			float dr = kd*id*(N.x*L.x + N.y*L.y + N.z*L.z);
 
 
-			float light = (ar + dr) / (0 + 0.003*dist); //)+ 0.000018 * dist*dist);
-			int colour = round(light);
+			float light = (ar + dr) / (0 + 0.003*dist);
+			int colour = myRound(light);
 			if (colour > 255) colour = 255;
 			else if (colour < 0) colour = 0;
 
@@ -265,13 +279,13 @@ void makeCheckImage(void)
 				char mode = 0;
 
 
-				for (int y = round(minY) - 1; y < round(maxY) + 1; y++)
+				for (int y = myRound(minY) - 1; y < myRound(maxY) + 1; y++)
 				{
 
 					hit = false;
 					if (y < 0) continue;
 					if (y > SCREEN_HEIGHT) break;
-					for (int x = round(minX) - 1; x < round(maxX) + 1; x++)
+					for (int x = myRound(minX) - 1; x < myRound(maxX) + 1; x++)
 					{
 
 						aa = (p1.y - p2.y)*x + (p2.x - p1.x)*y + p1.x*p2.y - p2.x*p1.y;
@@ -311,7 +325,7 @@ void makeCheckImage(void)
 
 								float dr = kd*id*(N.x*L.x + N.y*L.y + N.z*L.z);
 								float light = (ar + dr) / (0 + 0.0027*dist + 0 * dist*dist);
-								int colour = round(light);
+								int colour = myRound(light);
 								if (colour > 255) colour = 255;
 								else if (colour < 0) colour = 0;
 								*/
@@ -337,8 +351,67 @@ void makeCheckImage(void)
 			}
 			else
 			{
+				//scanline FILL ALgorithm
+				//EdgeEntryWrapper_NEW EdgeTable[2];
+				float ____minY;
 				
-				////////////
+				/*
+
+
+				//edgeEntry from p1 to p2
+				pEdgeEntry1.ymax = max(p1.y, p2.y);
+				if (p1.y == p2.y)//horizontal line
+				{
+					pEdgeEntry1.pNext = (EdgeEntry_NEW*)-1;
+				}
+				else//non-horizontal
+				{
+					pEdgeEntry1.pNext = NULL;
+					pEdgeEntry1.incr = (p1.x - p2.x) / (p1.y - p2.y);
+					____minY = min(p1.y, p2.y);
+					if (p1.y == ____minY) pEdgeEntry1.xmin = p1.x;
+					else pEdgeEntry1.xmin = p2.x;					
+				}
+				
+				//edgeEntry from p2 to p3
+				pEdgeEntry2.ymax = max(p2.y, p3.y);
+				if (p2.y == p3.y)//horizontal line
+				{
+					pEdgeEntry2.pNext = (EdgeEntry_NEW*)-1;
+				}
+				else//non-horizontal
+				{
+					pEdgeEntry2.pNext = NULL;
+					pEdgeEntry2.incr = (p2.x - p3.x) / (p2.y - p3.y);
+					____minY = min(p2.y, p3.y);
+					if (p2.y == ____minY) pEdgeEntry2.xmin = p2.x;
+					else pEdgeEntry2.xmin = p3.x;
+				}
+
+				//edgeEntry from p3 to p1
+				pEdgeEntry3.ymax = max(p1.y, p3.y);
+				if (p1.y == p3.y)//horizontal line
+				{
+					pEdgeEntry3.pNext = (EdgeEntry_NEW*)-1;
+				}
+				else//non-horizontal
+				{
+					pEdgeEntry3.pNext = NULL;
+					pEdgeEntry3.incr = (p1.x - p3.x) / (p1.y - p3.y);
+					____minY = min(p1.y, p3.y);
+					if (p1.y == ____minY) pEdgeEntry3.xmin = p1.x;
+					else pEdgeEntry3.xmin = p3.x;
+				}
+				*/
+				// do something;
+
+
+
+
+				
+				// EdgeTable[]
+				///////////
+				
 				EdgeTable.Initialize(i);
 
 				if (EdgeTable.m_EdgeTable.empty())
@@ -355,14 +428,15 @@ void makeCheckImage(void)
 				}
 				//printf("%f %f %f\n", bucket[0], bucket[1], bucket[2]);
 
-				float k1, k2, k3;
+				float k1, k2, k3,k4;
 				
 				//z값 보간
 				//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
 				//-> dd = k1*x + k2+y + k3으로
 				k1 = -(N.x / N.z);
 				k2 = -(N.y / N.z);
-				k3 = N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
+				k3 = (N.x*p3.x+ N.y*p3.y) / N.z + p3.z;
+
 				float from, to;
 
 				if (bucket[1] == 0)
@@ -395,25 +469,37 @@ void makeCheckImage(void)
 					//if (maxY > SCREEN_HEIGHT) maxY = SCREEN_HEIGHT;
 
 					///////
+					
+					k4 = k2*bucket[0] + k3;
+
 					for (float y = bucket[0]; y < maxY; y++)
 					{
-						if (y < 0) continue;
+						if (y < 0)
+						{
+							k4 += k2;
+							continue;
+						}
 						if (y >= SCREEN_HEIGHT) break;
 					
 						if (Left->xmin - 1 < 0) from = 0;
 						else from = Left->xmin - 1;
 						if (SCREEN_WIDTH <= Right->xmin + 1) to = SCREEN_WIDTH;
 						else to = Right->xmin + 1;
-						for (float x = from ; x <= to ; x++)
+						
+						//yy = myRound(y);
+						//k4 = k2*yy + k3;
+						dd = k1*from + k4;
+						yy = myRound(y);
+						for (float x = from ; x < to ; x++)
 						{
 							//if (x < 0) continue;
 							//if (x >= SCREEN_WIDTH) break;
-							xx = round(x);
-							yy = round(y);
+							xx = myRound(x);
+							
 							//dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
 							//dd = -(N.x/N.z)*x + N.x*p3.x/N.z - (N.y/N.z)*y + N.y*p3.y/N.z + p3.z;
 							//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
-							dd = k1*xx + k2*yy + k3;
+							
 							
 
 							
@@ -424,6 +510,7 @@ void makeCheckImage(void)
 								drawPixelColor(xx, yy, colour);
 								g_pZBuffer[yy][xx] = dd;
 							}
+							dd += k1;
 
 						}
 						Left->xmin = Left->xmin + Left->incr;
@@ -435,6 +522,7 @@ void makeCheckImage(void)
 							Left = Right;
 							Right = tmp;
 						}
+						k4 += k2;
 					}
 
 				}
@@ -463,9 +551,15 @@ void makeCheckImage(void)
 
 					int xx, yy;
 					float dd;
+
+					k4 = k2*bucket[0] + k3;
 					for (float y = bucket[0]; y < bucket[1]; y++)
 					{
-						if (y < 0) continue;
+						if (y < 0)
+						{
+							k4 += k2;
+							continue;
+						}
 						if (y >= SCREEN_HEIGHT) break;
 						
 						
@@ -474,16 +568,20 @@ void makeCheckImage(void)
 						if (SCREEN_WIDTH <= Right->xmin + 1) to = SCREEN_WIDTH;
 						else to = Right->xmin + 1;
 
-						for (float x = from; x <= to; x++)
+
+						yy = myRound(y);
+						//k4 = k2*yy + k3;
+						dd = k1*from + k4;
+						for (float x = from; x < to; x++)
 						{
 							//if (x < 0) continue;
 							//if (x >= SCREEN_WIDTH) break;
 
-							xx = round(x);
-							yy = round(y);
+							xx = myRound(x);
+			
 							//dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
 							//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
-							dd = k1*xx + k2*yy + k3;
+							
 
 
 							
@@ -495,7 +593,7 @@ void makeCheckImage(void)
 								drawPixelColor(xx, yy, colour);
 								g_pZBuffer[yy][xx] = dd;
 							}
-
+							dd += k1;
 						}
 						Left->xmin = Left->xmin + Left->incr;
 						Right->xmin = Right->xmin + Right->incr;
@@ -506,6 +604,7 @@ void makeCheckImage(void)
 							Left = Right;
 							Right = tmp;
 						}
+						k4 += k2;
 					}
 
 					Left = EdgeTable.m_MergeList.front().pEntry;
@@ -530,9 +629,14 @@ void makeCheckImage(void)
 						Right = tmp;
 					}
 
+					k4 = k2*bucket[1] + k3;
 					for (float y = bucket[1]; y < maxY; y++)
 					{
-						if (y < 0) continue;
+						if (y < 0)
+						{
+							k4 += k2;
+							continue;
+						}
 						if (y >= SCREEN_HEIGHT) break;
 
 
@@ -541,24 +645,27 @@ void makeCheckImage(void)
 						if (SCREEN_WIDTH <= Right->xmin + 1) to = SCREEN_WIDTH;
 						else to = Right->xmin + 1;
 
-						for (float x = from ; x <= to ; x++)
+						yy = myRound(y);
+						//k4 = k2*yy + k3;
+						dd = k1*from + k4;
+						for (float x = from ; x < to ; x++)
 						{
 							if (x < 0) continue;
 							if (x >= SCREEN_WIDTH) break;
 
-							xx = round(x);
-							yy = round(y);
+							xx = myRound(x);
+							
 
 							//dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
 							//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
-							dd = k1*xx + k2*yy + k3;
+							
 							//if (xx < 0 || SCREEN_WIDTH <= xx || yy < 0 || SCREEN_HEIGHT <= yy) continue;
 							if (dd < g_pZBuffer[yy][xx])
 							{
 								drawPixelColor(xx, yy, colour);
 								g_pZBuffer[yy][xx] = dd;
 							}
-
+							dd += k1;
 						}
 						Left->xmin = Left->xmin + Left->incr;
 						Right->xmin = Right->xmin + Right->incr;
@@ -569,6 +676,7 @@ void makeCheckImage(void)
 							Left = Right;
 							Right = tmp;
 						}
+						k4 += k2;
 					}
 
 				}
@@ -578,7 +686,8 @@ void makeCheckImage(void)
 
 
 				EdgeTable.finalize();
-
+				
+				
 			}
 
 
@@ -646,11 +755,14 @@ void initilize()
 	objData = new objLoader();
 	//objData->load("symphysis.obj");
 	objData->load("teapot.obj");
+	//objData->load("bone.obj");
+//	objData->load("roi.obj");
 
 	m_ptMouse.x = 320;
 	m_ptMouse.y = 240;
 	bIsScanline = false;
 	bIsWireFrame = false;
+	printf("hello");
 
 	
 	
@@ -702,13 +814,13 @@ void drawLineColor(int x0, int y0, float z0, int xEnd, int yEnd, float zEnd)
 	zIncrement = float(dz) / float(steps);
 
 
-	drawPixelColor(round(x), round(y),z);
+	drawPixelColor(myRound(x), myRound(y),z);
 	for (k = 0; k < steps; k++)
 	{
 		x += xIncrement;
 		y += yIncrement;
 		z += zIncrement;
-		drawPixelColor(round(x), round(y),z);
+		drawPixelColor(myRound(x), myRound(y),z);
 	}
 
 }
@@ -743,12 +855,12 @@ void drawLine(int x0, int y0, int xEnd,int yEnd)
 	xIncrement = float(dx) / float(steps);
 	yIncrement = float(dy) / float(steps);
 	
-	drawPixel(round(x), round(y));
+	drawPixel(myRound(x), myRound(y));
 	for (k = 0; k < steps; k++)
 	{
 		x += xIncrement;
 		y += yIncrement;
-		drawPixel(round(x), round(y));
+		drawPixel(myRound(x), myRound(y));
 	}
 			
 }

@@ -1,8 +1,9 @@
 #include "VertexShader.h"
 #include <stdio.h>
+#include <ppl.h>
+#include <array>
 
-
-void MatTrans(int id, CVertexShader* p);
+void MatTrans(int id,int from,int to, CVertexShader* p);
 int g_VerCnt;
 
 CVertexShader::CVertexShader()
@@ -12,7 +13,7 @@ CVertexShader::CVertexShader()
 	Setup((void*)1);
 	_POINT3D cam_pos, cam_dir, cam_target;
 	Init_Vector3D(cam_pos, 0, 0, -100);//teapot!!
-//	Init_Vector3D(cam_pos, 0, 0, -30);//symphysis!!
+//	Init_Vector3D(cam_pos, 0, 0, -10);//symphysis!!
 
 	Init_Vector3D(cam_dir, 0, 0, 0);
 	Init_Vector3D(cam_target, 0, 0, 1);
@@ -21,6 +22,13 @@ CVertexShader::CVertexShader()
 	m_lighting.y = 100;
 	m_lighting.z = 0;
 
+	for (int i = 0; i < VERTEX_THREAD_NUM; i++)
+	{
+		bThreadRun[i] = true;
+		hEvents[i] = CreateEvent(NULL, false, false, NULL);
+		hEndEvents[i] = CreateEvent(NULL, false, false, NULL);
+		
+	}
 }
 
 
@@ -34,6 +42,25 @@ CVertexShader::~CVertexShader()
 		delete g_lpCamera3D;
 		g_lpCamera3D = NULL;
 	}
+	
+	for (int i = 0; i < VERTEX_THREAD_NUM; i++)
+	{
+		bThreadRun[i] = false;
+		SetEvent(hEvents[i]);
+	}
+	printf("11231313\n");
+	WaitForMultipleObjects(VERTEX_THREAD_NUM, hEndEvents, true, INFINITE);
+	for (int i = 0; i < VERTEX_THREAD_NUM; i++)
+	{
+		//m_Threads[i].join();
+
+		CloseHandle(hEvents[i]);
+		CloseHandle(hEndEvents[i]);
+	}
+	
+	
+	
+
 }
 
 bool CVertexShader::Setup(void* something)
@@ -77,12 +104,28 @@ Vertex* CVertexShader::Launch(objLoader* pLoader)
 		m_pVertexTest = new char[m_nVertexCount];
 		printf("# of vertice : %d\n", m_nVertexCount);
 		m_pObjLoader = pLoader;
-	}
+		
 
+		int from = 0;
+		int cnt = 0;
+		int mod = m_nVertexCount % VERTEX_THREAD_NUM;
+
+		for (int i = 0; i < VERTEX_THREAD_NUM; i++)
+		{
+			cnt = m_nVertexCount / VERTEX_THREAD_NUM;
+			if (i < mod) cnt++;
+			m_Threads[i] = std::thread(&MatTrans, i, from, from + cnt, this);
+			m_Threads[i].detach();
+			from += cnt;
+		}
+		initialized = true;
+	}
+//	float zoom = 1000.0f;
 	//printf("-------------------------------------------\n");
 	//for (int i = 0; i < m_nVertexCount; i++)
 	//	m_pVertexTest[i] = 0;
-
+	_POINT3D p;
+	
 	if (m_bIsMultiThread == false)
 	{
 		for (int i = 0; i < m_nVertexCount; i++)
@@ -92,18 +135,7 @@ Vertex* CVertexShader::Launch(objLoader* pLoader)
 			m_pPoints[i].y = pLoader->vertexList[i]->e[1];
 			m_pPoints[i].z = pLoader->vertexList[i]->e[2];
 			m_pPoints[i].w = 0;
-
-
-		}
-
-		//printf("\nviewpoint coordinate : \n");
-		m_fMinZ = m_fMaxZ = 0;
-
-		for (int i = 0; i < m_nVertexCount; i++)
-		{
-
-
-			_POINT3D p;
+			
 			Mult_VM3D(p, m_pPoints[i], g_lpCamera3D->mcam);
 			m_pPoints[i].x = p.x;
 			m_pPoints[i].y = p.y;
@@ -128,8 +160,8 @@ Vertex* CVertexShader::Launch(objLoader* pLoader)
 			m_pPoints[i].x = m_pPoints[i].x + g_lpCamera3D->viewport_center_x;
 			m_pPoints[i].y = -m_pPoints[i].y + g_lpCamera3D->viewport_center_y;
 
-			if (m_pPoints[i].z < m_fMinZ) m_fMinZ = m_pPoints[i].z;
-			if (m_pPoints[i].z > m_fMaxZ) m_fMaxZ = m_pPoints[i].z;
+		//	if (m_pPoints[i].z < m_fMinZ) m_fMinZ = m_pPoints[i].z;
+		//	if (m_pPoints[i].z > m_fMaxZ) m_fMaxZ = m_pPoints[i].z;
 			//m_pVertexTest[i]++;
 			//printf("%f %f %f %f\n", m_pPoints[i].x, m_pPoints[i].y, m_pPoints[i].z);
 		}
@@ -138,28 +170,26 @@ Vertex* CVertexShader::Launch(objLoader* pLoader)
 	{
 		for (int i = 0; i < VERTEX_THREAD_NUM; i++)
 		{
-			m_Threads[i] = std::thread(&MatTrans, i, this);
-			//m_Threads[i].detach();
+			SetEvent(hEvents[i]);
 		}
-		for (int i = 0; i < VERTEX_THREAD_NUM; i++)
-		{
-			
-			m_Threads[i].join();
-			//m_Threads[i].~thread();
-		}
+
+		WaitForMultipleObjects(VERTEX_THREAD_NUM, hEndEvents, true, INFINITE);
 		//printf("aa");
+		
 	}
 	
 	//for (int i = 0; i < m_nVertexCount; i++)
 	{
-		//if (m_pVertexTest[i] != 1) printf("sival! %d:%d\n", i, m_pVertexTest[i]);
+//if (m_pVertexTest[i] != 1) printf("sival! %d:%d\n", i, m_pVertexTest[i]);
 	}
 	//for lighting
+	//teapot(20,80,0)
 	m_lighting.x = 20;
 	m_lighting.y = 80;
+	//teapot m_lighting.z = 100;
 	m_lighting.z = 0;
 	m_lighting.w = 0;
-	_POINT3D p;
+
 	Mult_VM3D(p, m_lighting, g_lpCamera3D->mcam);
 	m_lighting.x = p.x;
 	m_lighting.y = p.y;
@@ -185,8 +215,8 @@ Vertex* CVertexShader::Launch(objLoader* pLoader)
 
 
 
-
-	initialized = true;
+	//printf("HI!");
+	
 	return m_pVertex;
 }
 
@@ -200,52 +230,76 @@ bool CVertexShader::Transform(Vertex* input)
 }
 
 
-void MatTrans(int id,CVertexShader* p) {
-	//printf("my id is %d\n", id);
+void MatTrans(int id,int from,int to,CVertexShader* p) {
+	printf("Thread %d is covering %d to %d\n",id, from,to);
 	/*int i = id*(p->m_nVertexCount / VERTEX_THREAD_NUM);
 	int End = (p->m_nVertexCount/VERTEX_THREAD_NUM) * (id+1);
 	if (i == VERTEX_THREAD_NUM*(VERTEX_THREAD_NUM - 1) && End < p->m_nVertexCount)
 		End = p->m_nVertexCount;
 	_POINT3D temp;
 	float z;*/
-	int i = id;
+	
 	int End = (p->m_nVertexCount);
 	_POINT3D temp;
-	float z;
+	_POINT3D vtx;
 
-	while (i < End)
+	float z, zoom, viewport_center_x, viewport_center_y;
+	int i = from;
+	obj_vector** vList = p->m_pObjLoader->vertexList;
+
+	while (1)
 	{
-		//printf("THREAD %d is doing %d\n", id, i);
-		p->m_pPoints[i].x = p->m_pObjLoader->vertexList[i]->e[0];
-		p->m_pPoints[i].y = p->m_pObjLoader->vertexList[i]->e[1];
-		p->m_pPoints[i].z = p->m_pObjLoader->vertexList[i]->e[2];
-		p->m_pPoints[i].w = 0;
-
-		
-		Mult_VM3D(temp, p->m_pPoints[i], g_lpCamera3D->mcam);
-		p->m_pPoints[i].x = temp.x;
-		p->m_pPoints[i].y = temp.y;
-		p->m_pPoints[i].z = temp.z;
-		p->m_pPoints[i].w = temp.w;
-
-		z = p->m_pPoints[i].z;
-
-		if (z > 1.0f)
+		WaitForSingleObject(p->hEvents[id], INFINITE);
+	//	printf("GET!! : %d\n", id);
+		if (p->bThreadRun[id] == false)
 		{
-			z = g_lpCamera3D->zoom / z;
-			p->m_pPoints[i].x = p->m_pPoints[i].x * z;
-			p->m_pPoints[i].y = p->m_pPoints[i].y * z;
-		}
-		else
-		{
-			z = g_lpCamera3D->zoom;
-			p->m_pPoints[i].x = p->m_pPoints[i].x * z;
-			p->m_pPoints[i].y = p->m_pPoints[i].y * z;
+			printf("ready to kill thread %d...\n", id);
+			break;
 		}
 
-		p->m_pPoints[i].x = p->m_pPoints[i].x + g_lpCamera3D->viewport_center_x;
-		p->m_pPoints[i].y = -p->m_pPoints[i].y + g_lpCamera3D->viewport_center_y;
-		p->m_pVertexTest[i]++;
-		i += VERTEX_THREAD_NUM;
+		i = from;
+		zoom = g_lpCamera3D->zoom;
+		viewport_center_x = g_lpCamera3D->viewport_center_x;
+		viewport_center_y = g_lpCamera3D->viewport_center_y;
+		while (i < to)
+		{
+			//printf("THREAD %d is doing %d\n", id, i);
+			vtx.x = vList[i]->e[0];
+			vtx.y = vList[i]->e[1];
+			vtx.z = vList[i]->e[2];
+			vtx.w = 0;
+
+
+			Mult_VM3D(temp, vtx, g_lpCamera3D->mcam);
+
+			z = temp.z;
+
+			if (z > 1.0f)
+			{
+				z = zoom / z;
+				temp.x = temp.x * z;
+				temp.y = temp.y * z;
+			}
+			else
+			{
+				z = g_lpCamera3D->zoom;
+				temp.x = temp.x * z;
+				temp.y = temp.y * z;
+			}
+
+			temp.x = temp.x +	viewport_center_x;
+			temp.y = -temp.y + viewport_center_y;
+			//p->m_pVertexTest[i]++;
+
+			p->m_pPoints[i].x = temp.x;
+			p->m_pPoints[i].y = temp.y;
+			p->m_pPoints[i].z = temp.z;
+			p->m_pPoints[i].w = temp.w;
+
+			i++;
+		}
+		SetEvent(p->hEndEvents[id]);
 	}
+	printf("Thread %d is killed!\n",id);
+	SetEvent(p->hEndEvents[id]);
 }

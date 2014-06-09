@@ -26,8 +26,10 @@ public:
 	Matrix3D WorldMat;
 	Matrix3D ViewMat;
 	int m_nVertexCount;
-
-	float m_fMinZ;
-	float m_fMaxZ;
+	HANDLE hEvents[VERTEX_THREAD_NUM];
+	HANDLE hEndEvents[VERTEX_THREAD_NUM];
+	bool bThreadRun[VERTEX_THREAD_NUM];
+	//float m_fMinZ;
+	//float m_fMaxZ;
 };
 

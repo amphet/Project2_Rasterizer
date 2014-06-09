@@ -68,7 +68,7 @@ bool CEdgeTable::Initialize(int faceID)
 
 	if (minY == maxY)
 	{
-		printf("rasterize init :: err1\n");
+		//printf("rasterize init :: err1\n");
 		return false;//이경우에는 아마 hidden face culling에서 제외될것
 	}
 	
