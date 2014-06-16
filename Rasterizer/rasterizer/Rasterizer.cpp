@@ -8,15 +8,15 @@ inline int myRound(const float a) { return int(a + 0.5); }
 
 typedef struct _EdgeRecord{
 	int y;
-	float xmin, ymax, m;
+	float xmin, ymax, incr;
 } EdgeRecord;
 
-void initEdgeRecord(EdgeRecord *record, int _y, float _xmin, float _ymax, float _m)
+void initEdgeRecord(EdgeRecord *record, int _y, float _xmin, float _ymax, float _incr)
 {
 	record->y = _y;
 	record->xmin = _xmin;
 	record->ymax = _ymax;
-	record->m = _m;
+	record->incr = _incr;
 }
 
 EdgeRecord makeEdge(_POINT3D p1, _POINT3D p2)
@@ -36,7 +36,7 @@ EdgeRecord makeEdge(_POINT3D p1, _POINT3D p2)
 		_ymax = p1.y;
 	}
 	EdgeRecord ret;
-	initEdgeRecord(&ret, _y, _xmin, _ymax, (p1.y - p2.y)/(p1.x - p2.x));
+	initEdgeRecord(&ret, _y, _xmin, _ymax, (p1.x - p2.x)/(p1.y - p2.y));
 	return ret;
 }
 
@@ -98,20 +98,55 @@ void initEdgeTable(EdgeRecord EdgeTable[3], EdgeRecord e1, EdgeRecord e2, EdgeRe
 			EdgeTable[1] = temp;
 		}
 	}
-	else if(EdgeTable[1].y == EdgeTable[2].y)
+	if(EdgeTable[1].y == EdgeTable[2].y)
 	{
 		if(EdgeTable[1].xmin > EdgeTable[2].xmin)
 		{
 			EdgeRecord temp = EdgeTable[1];
-			EdgeTable[1] = EdgeTable[1];
+			EdgeTable[1] = EdgeTable[2];
 			EdgeTable[2] = temp;
 		}
+	}
+
+	if (EdgeTable[0].y == EdgeTable[1].y && EdgeTable[0].xmin == EdgeTable[1].xmin)
+	{
+		if (EdgeTable[0].incr > EdgeTable[1].incr)
+		{
+			EdgeRecord temp = EdgeTable[0];
+			EdgeTable[0] = EdgeTable[1];
+			EdgeTable[1] = temp;
+		}
+	}
+	if (EdgeTable[1].y == EdgeTable[2].y && EdgeTable[1].xmin == EdgeTable[2].xmin)
+	{
+		if (EdgeTable[1].incr > EdgeTable[2].incr)
+		{
+			EdgeRecord temp = EdgeTable[1];
+			EdgeTable[1] = EdgeTable[2];
+			EdgeTable[2] = temp;
+		}
+	}
+
+	if (1 / EdgeTable[0].incr == 0)
+	{
+		EdgeRecord temp1 = EdgeTable[0];
+		EdgeRecord temp2 = EdgeTable[1];
+		EdgeTable[1] = EdgeTable[2];
+		EdgeTable[0] = temp2;
+		EdgeTable[2] = temp1;
+	}
+	else if (1 / EdgeTable[1].incr == 0)
+	{
+		EdgeRecord temp = EdgeTable[1];
+		EdgeTable[1] = EdgeTable[2];
+		EdgeTable[2] = temp;
+
 	}
 }
 
 void printEdge(EdgeRecord e)
 {
-	std::cout << e.y << "/" << e.xmin << "/" << e.ymax << "/" << e.m << "\n";
+	std::cout << e.y << "/" << e.xmin << "/" << e.ymax << "/" << e.incr << "\n";
 }
 void printEdgeTable(EdgeRecord t[3])
 {
@@ -132,7 +167,7 @@ CRasterizer::~CRasterizer()
 {
 }
 
-void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, float (*screen)[640])
+void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, float (*screen)[480])
 {
 	EdgeRecord ETable[3];	//ETable[0]: lowest y entry ~ Etable[3]: highest y entry
 	EdgeRecord e1, e2, e3;
@@ -141,27 +176,40 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, float (*screen)[
 	e3 = makeEdge(p3, p1);	// e3: p3~p1
 	initEdgeTable(ETable, e1, e2, e3);
 
-//	printEdgeTable(ETable);
+	printEdgeTable(ETable);
 	float topmostY = max(p1.y, p2.y);
 	topmostY = max(topmostY, p3.y);
 	int topmosty = myRound(topmostY);
+//	std::cout << topmosty << "\n";
 	int fromx, tox;
 	int fidx, tidx;
 	fidx = 0;
 	tidx = 1;
-	int linecnt = 0;
-	for(int y = ETable[0].y; y <= topmosty; y++)
+	int fcnt, tcnt;	// from and to counter
+	fcnt = tcnt = 0;
+	for (int y = ETable[0].y; y <= topmosty; y++)
 	{
-		fromx = myRound(ETable[fidx].xmin + linecnt / ETable[fidx].m);
-		if (ETable[tidx].m == 0) tox = myRound(ETable[tidx].xmin);
-		else tox = myRound(ETable[tidx].xmin + linecnt / ETable[tidx].m);
-		for(int x = fromx; x <= tox; x++)
+		if (1 / ETable[fidx].incr == 0) fromx = myRound(ETable[fidx].xmin);
+		else fromx = myRound(ETable[fidx].xmin + fcnt * ETable[fidx].incr);
+		if (1 / ETable[tidx].incr == 0) tox = myRound(ETable[tidx].xmin);
+		else tox = myRound(ETable[tidx].xmin + tcnt * ETable[tidx].incr);
+		std::cout << "from " << fromx << " to " << tox << "/idx: " << fidx << ", " << tidx << "\n";	// debug
+		for (int x = fromx; x <= tox; x++)
 		{
 			screen[x][y] = 1.;
 		}
-		if(y == ETable[fidx].ymax) fidx = 2;
-		else if (y == ETable[tidx].ymax) tidx = 2;
-		linecnt++;
+		if (y == ETable[fidx].ymax)
+		{
+			fidx = 2;
+			fcnt = -1;
+		}
+		else if (y == ETable[tidx].ymax)
+		{
+			tidx = 2;
+			tcnt = -1;
+		}
+		fcnt++;
+		tcnt++;
 	}
 
 
