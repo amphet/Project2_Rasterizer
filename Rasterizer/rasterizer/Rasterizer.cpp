@@ -190,10 +190,10 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, BYTE (*screen)[6
 	fcnt = tcnt = 0;
 	for (int y = ETable[0].y; y <= topmosty; y++)
 	{
-		if (1 / ETable[fidx].incr == 0) fromx = myRound(ETable[fidx].xmin);
-		else fromx = myRound(ETable[fidx].xmin + fcnt * ETable[fidx].incr);
-		if (1 / ETable[tidx].incr == 0) tox = myRound(ETable[tidx].xmin);
-		else tox = myRound(ETable[tidx].xmin + tcnt * ETable[tidx].incr);
+//		if (1 / ETable[fidx].incr == 0) fromx = myRound(ETable[fidx].xmin);
+		/*else*/ fromx = myRound(ETable[fidx].xmin + fcnt * ETable[fidx].incr);
+//		if (1 / ETable[tidx].incr == 0) tox = myRound(ETable[tidx].xmin);
+		/*else*/ tox = myRound(ETable[tidx].xmin + tcnt * ETable[tidx].incr);
 //		std::cout << "from " << fromx << " to " << tox << "/idx: " << fidx << ", " << tidx << "\n";	// debug
 
 		for (int x = fromx; x <= tox; x++)
@@ -202,12 +202,12 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, BYTE (*screen)[6
 			screen[y][x][1] = color;
 			screen[y][x][2] = color;
 		}
-		if (y == ETable[fidx].ymax)
+		if (y == myRound(ETable[fidx].ymax))
 		{
 			fidx = 2;
 			fcnt = -1;
 		}
-		else if (y == ETable[tidx].ymax)
+		else if (y == myRound(ETable[tidx].ymax))
 		{
 			tidx = 2;
 			tcnt = -1;
