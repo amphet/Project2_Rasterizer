@@ -8,7 +8,7 @@ public:
 	CRasterizer();
 	~CRasterizer();
 
-	void Launch(Vertex* pVertex, Triangular_Face* vFace);
+	void Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, float (*screen)[640]);
 
 };
 
