@@ -93,6 +93,7 @@
     <ClCompile Include="EdgeTable.cpp" />
     <ClCompile Include="Global.cpp" />
     <ClCompile Include="list.cpp" />
+    <ClCompile Include="MultiThreadRasterizer.cpp" />
     <ClCompile Include="objLoader.cpp" />
     <ClCompile Include="obj_parser.cpp" />
     <ClCompile Include="PixelShader.cpp" />
@@ -107,6 +108,7 @@
     <ClInclude Include="Global.h" />
     <ClInclude Include="glut.h" />
     <ClInclude Include="list.h" />
+    <ClInclude Include="MultiThreadRasterizer.h" />
     <ClInclude Include="objLoader.h" />
     <ClInclude Include="obj_parser.h" />
     <ClInclude Include="PixelShader.h" />

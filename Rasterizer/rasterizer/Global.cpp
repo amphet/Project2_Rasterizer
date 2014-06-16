@@ -350,3 +350,7 @@ void Cross_Vector3D(_POINT3D& v, _POINT3D v1, _POINT3D v2)
 	v.z = sin_fi * n.z;
 	v.w = 1.0f;
 }
+
+
+MyFaceInfo *pFace;
+ _POINT3D *pVertice;

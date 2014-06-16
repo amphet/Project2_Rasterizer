@@ -34,19 +34,21 @@ global.h : 전역변수, 구조체정의
 #include "Rasterizer.h"
 #include "PixelShader.h"
 #include "EdgeTable.h"
+#include "MultiThreadRasterizer.h"
+
 
 // Constants Directive
 //
 #define	SCREEN_WIDTH 640
 #define	SCREEN_HEIGHT 480
 #define COLOR_DEPTH 3
-#define SCREEN_DIVIDE 40
+//#define SCREEN_DIVIDE 40
 
 // Global variables
 //
 typedef unsigned char byte;
 byte g_pScreenImage[SCREEN_HEIGHT][SCREEN_WIDTH][COLOR_DEPTH];
-float g_pZBuffer[SCREEN_HEIGHT][SCREEN_WIDTH];
+//float g_pZBuffer[SCREEN_HEIGHT][SCREEN_WIDTH];
 
 // Static variables
 //
@@ -75,36 +77,22 @@ void PipelineCheck();
 
 bool bIsScanline;
 bool bIsWireFrame;
-
+bool g_bIsMultiThread;
 
 CVertexShader VertexShader;
 CTessellator Tessellator;
 CRasterizer Rasterizer;
 CPixelShader PixelShader;
-CEdgeTable *pEdgeTable[VERTEX_THREAD_NUM];
+CMultiThreadRasterizer ThreadRasterizer;
+
+//CEdgeTable *pEdgeTable[VERTEX_THREAD_NUM];
 
 int g_cnt;
 
-unsigned char *pColor;
-std::thread g_Threads[VERTEX_THREAD_NUM];
-HANDLE g_hEvents[VERTEX_THREAD_NUM];
-HANDLE g_hEndEvents[VERTEX_THREAD_NUM];
-bool g_bThreadRun[VERTEX_THREAD_NUM];
-void Binning(int id);
-int g_from[SCREEN_DIVIDE];
-int g_to[SCREEN_DIVIDE];
-int g_finger;
-
-typedef struct _MyFaceInfo
-{
-	int VertexIndex[3];
-	_POINT3D NormVec;
-	bool bisBackFace;
-	char nColor;
-} MyFaceInfo;
+//unsigned char *pColor;
 
 
-MyFaceInfo *pFace;
+
 
 //
 //typedef struct __EdgeEntryWrapper
@@ -119,13 +107,13 @@ void makeCheckImage(void)
 {
 	//printf("adadf\n");
 	memset(g_pScreenImage, 255, sizeof (g_pScreenImage));
-	
+
 	Update_Camera(g_lpCamera3D);
 	// printf("camera : %f %f %f\n", g_lpCamera3D->pos.x, g_lpCamera3D->pos.y, g_lpCamera3D->pos.z);
 	//_POINT3D tempcam;
 
 	int colour=100;
-	Vertex* pVertex_Converted = VertexShader.Launch(objData);
+	Vertex* pVertex_Converted = VertexShader.Launch();
 	
 //	Triangular_Face* pFace_Converted = Tessellator.Launch(objData->faceList);
 	//objData->vertexList
@@ -157,15 +145,15 @@ void makeCheckImage(void)
 	float fMinInterX, fMaxInterX;
 
 	
-	for (int i = 0; i < 480; i++)
+	/*for (int i = 0; i < 480; i++)
 	{
 		for (int j = 0; j < 640; j++)
 			g_pZBuffer[i][j] = FLT_MAX;
-	}
-	
+	}*/
+	int hello = 0;
 	//if (VertexShader.m_bIsMultiThread == false)
 	{
-		for (int i = 0; i < objData->faceCount; i++)
+		for (int i = 0; i < VertexShader.m_nVertexCount; i++)
 		{
 			a = pFace[i].VertexIndex[0];
 			b = pFace[i].VertexIndex[1];
@@ -217,7 +205,7 @@ void makeCheckImage(void)
 			//hidden face culling
 			if (N.z > 0){
 				pFace[i].bisBackFace = true;
-				
+				//pFace[i].bisBackFace = false;
 				//cnt++;
 				continue;//
 			}
@@ -230,7 +218,7 @@ void makeCheckImage(void)
 				pFace[i].NormVec.w = N.w;
 			}
 
-			//if (objData->faceList[i]->bIsBackface) continue;//후면이면 안해도될것
+			if (pFace[i].bisBackFace) continue;//후면이면 안해도될것
 
 			float maxX, minX, maxY, minY;
 
@@ -248,16 +236,22 @@ void makeCheckImage(void)
 
 			minY = min(p1.y, p2.y);
 			minY = min(minY, p3.y);
-
+			
+			if (0 > maxX || minX >= SCREEN_WIDTH || 0 > maxY || minY >= SCREEN_HEIGHT)
+			{
+				//pFace[i].bisBackFace = true;//outside of screen
+				//continue;
+			}
+			
 			
 
-			if (bIsWireFrame)
+		/*	if (bIsWireFrame)
 			{
 				drawLine(p1.x, p1.y, p2.x, p2.y);
 				drawLine(p2.x, p2.y, p3.x, p3.y);
 				drawLine(p3.x, p3.y, p1.x, p1.y);
 				continue;
-			}
+			}*/
 			
 
 			//lighting value 계산
@@ -297,452 +291,373 @@ void makeCheckImage(void)
 			if (colour > 255) colour = 255;
 			else if (colour < 0) colour = 0;
 			pFace[i].nColor = colour;
+			//if (i>900)
+			//printf("%d color : %d\n", i, colour);
+
+			hello++;
+			if (g_bIsMultiThread) continue;
 			
-			if (VertexShader.m_bIsMultiThread) continue;
-			
-			//printf("%d %d\n", i, colour);
-			////////////////////////
 			//rasterize + zbuffer
-			float k1, k2, k3,k4,k5,k6,k7,k8;
 
-			if (!bIsScanline)
-			{
-				bool hit = false;
-				char mode = 0;
-
-				
-				k1 = p1.x*p2.y - p2.x*p1.y + (p2.x - p1.x)*(myRound(minY) - 2);
-				k2 = p2.x*p3.y - p3.x*p2.y + (p3.x - p2.x)*(myRound(minY) - 2);
-				k3 = p3.x*p1.y - p1.x*p3.y + (p1.x - p3.x)*(myRound(minY) - 2);
-				k4 = N.x*p3.x/N.z + N.y*p3.y/N.z + p3.z;
-
-				for (int y = myRound(minY) - 1; y < myRound(maxY) + 1; y++)
-				{
-					k1 += (p2.x - p1.x);
-					k2 += (p3.x - p2.x);
-					k3 += (p1.x - p3.x);
-					hit = false;
-					if (y < 0) continue;
-
-					if (y > SCREEN_HEIGHT) break;
-					
-					//k5 = (p2.x - p1.x)*y + k1;
-					//k6 = (p3.x - p2.x)*y + k2;
-					//k7 = (p1.x - p3.x)*y + k3;
-					
-					for (int x = myRound(minX) - 1; x < myRound(maxX) + 1; x++)
-					{
-
-						aa = k1+(p1.y - p2.y)*x;// +(p2.x - p1.x)*y + p1.x*p2.y - p2.x*p1.y;
-						bb = k2+(p2.y - p3.y)*x;// +(p3.x - p2.x)*y + p2.x*p3.y - p3.x*p2.y;
-						cc = k3+(p3.y - p1.y)*x;// +(p1.x - p3.x)*y + p3.x*p1.y - p1.x*p3.y;
-
-						if (aa <  0 && bb  <   0 && cc  < 0)
-						{
-							if (x < 0 || SCREEN_WIDTH <= x || y < 0 || SCREEN_HEIGHT <= y) continue;
-							hit = true;
-							dd = k4 - N.x*x / N.z - N.y*y / N.z;
-							if (dd < g_pZBuffer[y][x])
-							{
-								//아래 주석 해제하면 pixel단위 lighting
-								
-								/*
-								//lighting
-								_POINT3D L,NOW;
-								Init_Vector3D(NOW, x, y, dd);
-
-								Sub_Vector3D(L, VertexShader.m_lighting, NOW);
-								Normalize_Vector3D(L);
-
-								float dist = sqrt((VertexShader.m_lighting.x - NOW.x)*(VertexShader.m_lighting.x - NOW.x)
-								+ (VertexShader.m_lighting.y - NOW.y)*(VertexShader.m_lighting.y - NOW.y)
-								+ (VertexShader.m_lighting.z - NOW.z)*(VertexShader.m_lighting.z - NOW.z)
-								);
-
-
-								float ka = 0.5;
-								float kd = 0.9;
-
-								int ia = 255;
-								int id = 255;
-
-								float ar = ka*ia;
-
-								float dr = kd*id*(N.x*L.x + N.y*L.y + N.z*L.z);
-								float light = (ar + dr) / (0 + 0.0027*dist + 0 * dist*dist);
-								int colour = myRound(light);
-								if (colour > 255) colour = 255;
-								else if (colour < 0) colour = 0;
-								
-								*/
-
-								//ㅡㅡ
-								drawPixelColor(x, y, pFace[i].nColor);
-								g_pZBuffer[y][x] = dd;
-							}
-
-
-						}
-						else
-						{
-							if (hit)
-								break;
-						}
-
-
-
-					}
-				}
-			}
-			else
-			{
-				//scanline FILL ALgorithm
-				//EdgeEntryWrapper_NEW EdgeTable[2];
-				float ____minY;
-				
-				/*
-
-
-				//edgeEntry from p1 to p2
-				pEdgeEntry1.ymax = max(p1.y, p2.y);
-				if (p1.y == p2.y)//horizontal line
-				{
-					pEdgeEntry1.pNext = (EdgeEntry_NEW*)-1;
-				}
-				else//non-horizontal
-				{
-					pEdgeEntry1.pNext = NULL;
-					pEdgeEntry1.incr = (p1.x - p2.x) / (p1.y - p2.y);
-					____minY = min(p1.y, p2.y);
-					if (p1.y == ____minY) pEdgeEntry1.xmin = p1.x;
-					else pEdgeEntry1.xmin = p2.x;					
-				}
-				
-				//edgeEntry from p2 to p3
-				pEdgeEntry2.ymax = max(p2.y, p3.y);
-				if (p2.y == p3.y)//horizontal line
-				{
-					pEdgeEntry2.pNext = (EdgeEntry_NEW*)-1;
-				}
-				else//non-horizontal
-				{
-					pEdgeEntry2.pNext = NULL;
-					pEdgeEntry2.incr = (p2.x - p3.x) / (p2.y - p3.y);
-					____minY = min(p2.y, p3.y);
-					if (p2.y == ____minY) pEdgeEntry2.xmin = p2.x;
-					else pEdgeEntry2.xmin = p3.x;
-				}
-
-				//edgeEntry from p3 to p1
-				pEdgeEntry3.ymax = max(p1.y, p3.y);
-				if (p1.y == p3.y)//horizontal line
-				{
-					pEdgeEntry3.pNext = (EdgeEntry_NEW*)-1;
-				}
-				else//non-horizontal
-				{
-					pEdgeEntry3.pNext = NULL;
-					pEdgeEntry3.incr = (p1.x - p3.x) / (p1.y - p3.y);
-					____minY = min(p1.y, p3.y);
-					if (p1.y == ____minY) pEdgeEntry3.xmin = p1.x;
-					else pEdgeEntry3.xmin = p3.x;
-				}
-				*/
-				// do something;
-
-
-
-
-				
-				// EdgeTable[]
-				///////////
-				/*
-				EdgeTable.Initialize(i);
-
-				if (EdgeTable.m_EdgeTable.empty())
-				{
-					printf("????????????????\n");
-					continue;
-				}
-				float bucket[3] = { 0, 0, 0 };
-				char cnt = 0;
-				for (std::list<EdgeIndex>::iterator pos = EdgeTable.m_EdgeTable.begin(); pos != EdgeTable.m_EdgeTable.end(); pos++)
-				{
-					bucket[cnt] = pos->y;
-					cnt++;
-				}
-				//printf("%f %f %f\n", bucket[0], bucket[1], bucket[2]);
-
-				float k1, k2, k3,k4;
-				
-				//z값 보간
-				//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
-				//-> dd = k1*x + k2+y + k3으로
-				k1 = -(N.x / N.z);
-				k2 = -(N.y / N.z);
-				k3 = (N.x*p3.x+ N.y*p3.y) / N.z + p3.z;
-
-				float from, to;
-
-				if (bucket[1] == 0)
-				{
-					for (std::list<EdgeEntryWrapper>::iterator pos = EdgeTable.m_EdgeTable.front().Entry.begin(); pos != EdgeTable.m_EdgeTable.front().Entry.end(); pos++)
-					{
-						EdgeEntryWrapper ITEM;
-						ITEM.pEntry = pos->pEntry;
-
-						EdgeTable.m_MergeList.push_back(ITEM);
-					}
-
-
-					EdgeEntry* Left;
-					EdgeEntry* Right;
-					EdgeEntry* tmp;
-					Left = EdgeTable.m_MergeList.front().pEntry;
-					Right = EdgeTable.m_MergeList.back().pEntry;
-					if (Left->xmin > Right->xmin)
-					{
-						tmp = Left;
-						Left = Right;
-						Right = tmp;
-					}
-
-					int xx, yy;
-					float dd;
-
-					///clipping??
-					//if (maxY > SCREEN_HEIGHT) maxY = SCREEN_HEIGHT;
-
-					///////
-					
-					k4 = k2*bucket[0] + k3;
-
-					for (float y = bucket[0]; y < maxY; y++)
-					{
-						if (y < 0)
-						{
-							k4 += k2;
-							continue;
-						}
-						if (y >= SCREEN_HEIGHT) break;
-					
-						if (Left->xmin - 1 < 0) from = 0;
-						else from = Left->xmin - 1;
-						if (SCREEN_WIDTH <= Right->xmin + 1) to = SCREEN_WIDTH;
-						else to = Right->xmin + 1;
-						
-						//yy = myRound(y);
-						//k4 = k2*yy + k3;
-						dd = k1*from + k4;
-						yy = myRound(y);
-						for (float x = from ; x < to ; x++)
-						{
-							//if (x < 0) continue;
-							//if (x >= SCREEN_WIDTH) break;
-							xx = myRound(x);
-							
-							//dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
-							//dd = -(N.x/N.z)*x + N.x*p3.x/N.z - (N.y/N.z)*y + N.y*p3.y/N.z + p3.z;
-							//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
-							
-							
-
-							
-
-						//	if (xx < 0 || SCREEN_WIDTH <= xx || yy < 0 || SCREEN_HEIGHT <= yy) continue;
-							if (dd < g_pZBuffer[yy][xx])
-							{
-								drawPixelColor(xx, yy, colour);
-								g_pZBuffer[yy][xx] = dd;
-							}
-							dd += k1;
-
-						}
-						Left->xmin = Left->xmin + Left->incr;
-						Right->xmin = Right->xmin + Right->incr;
-
-						if (Left->xmin > Right->xmin)
-						{
-							tmp = Left;
-							Left = Right;
-							Right = tmp;
-						}
-						k4 += k2;
-					}
-
-				}
-				else
-				{
-					for (std::list<EdgeEntryWrapper>::iterator pos = EdgeTable.m_EdgeTable.front().Entry.begin(); pos != EdgeTable.m_EdgeTable.front().Entry.end(); pos++)
-					{
-						EdgeEntryWrapper ITEM;
-						ITEM.pEntry = pos->pEntry;
-
-						EdgeTable.m_MergeList.push_back(ITEM);
-					}
-
-
-					EdgeEntry* Left;
-					EdgeEntry* Right;
-					EdgeEntry* tmp;
-					Left = EdgeTable.m_MergeList.front().pEntry;
-					Right = EdgeTable.m_MergeList.back().pEntry;
-					if (Left->xmin > Right->xmin)
-					{
-						tmp = Left;
-						Left = Right;
-						Right = tmp;
-					}
-
-					int xx, yy;
-					float dd;
-
-					k4 = k2*bucket[0] + k3;
-					for (float y = bucket[0]; y < bucket[1]; y++)
-					{
-						if (y < 0)
-						{
-							k4 += k2;
-							continue;
-						}
-						if (y >= SCREEN_HEIGHT) break;
-						
-						
-						if (Left->xmin - 1 < 0) from = 0;
-						else from = Left->xmin - 1;
-						if (SCREEN_WIDTH <= Right->xmin + 1) to = SCREEN_WIDTH;
-						else to = Right->xmin + 1;
-
-
-						yy = myRound(y);
-						//k4 = k2*yy + k3;
-						dd = k1*from + k4;
-						for (float x = from; x < to; x++)
-						{
-							//if (x < 0) continue;
-							//if (x >= SCREEN_WIDTH) break;
-
-							xx = myRound(x);
-			
-							//dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
-							//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
-							
-
-
-							
-
-
-							//if (xx < 0 || SCREEN_WIDTH <= xx || yy < 0 || SCREEN_HEIGHT <= yy) continue;
-							if (dd < g_pZBuffer[yy][xx])
-							{
-								drawPixelColor(xx, yy, colour);
-								g_pZBuffer[yy][xx] = dd;
-							}
-							dd += k1;
-						}
-						Left->xmin = Left->xmin + Left->incr;
-						Right->xmin = Right->xmin + Right->incr;
-
-						if (Left->xmin > Right->xmin)
-						{
-							tmp = Left;
-							Left = Right;
-							Right = tmp;
-						}
-						k4 += k2;
-					}
-
-					Left = EdgeTable.m_MergeList.front().pEntry;
-					Right = EdgeTable.m_MergeList.back().pEntry;
-					if (Left->ymax == bucket[1]) EdgeTable.m_MergeList.pop_front();
-					if (Right->ymax == bucket[1]) EdgeTable.m_MergeList.pop_back();
-
-					for (std::list<EdgeEntryWrapper>::iterator pos = EdgeTable.m_EdgeTable.back().Entry.begin(); pos != EdgeTable.m_EdgeTable.back().Entry.end(); pos++)
-					{
-						EdgeEntryWrapper ITEM;
-						ITEM.pEntry = pos->pEntry;
-
-						EdgeTable.m_MergeList.push_back(ITEM);
-					}
-
-					Left = EdgeTable.m_MergeList.front().pEntry;
-					Right = EdgeTable.m_MergeList.back().pEntry;
-					if (Left->xmin > Right->xmin)
-					{
-						tmp = Left;
-						Left = Right;
-						Right = tmp;
-					}
-
-					k4 = k2*bucket[1] + k3;
-					for (float y = bucket[1]; y < maxY; y++)
-					{
-						if (y < 0)
-						{
-							k4 += k2;
-							continue;
-						}
-						if (y >= SCREEN_HEIGHT) break;
-
-
-						if (Left->xmin - 1 < 0) from = 0;
-						else from = Left->xmin - 1;
-						if (SCREEN_WIDTH <= Right->xmin + 1) to = SCREEN_WIDTH;
-						else to = Right->xmin + 1;
-
-						yy = myRound(y);
-						//k4 = k2*yy + k3;
-						dd = k1*from + k4;
-						for (float x = from ; x < to ; x++)
-						{
-							if (x < 0) continue;
-							if (x >= SCREEN_WIDTH) break;
-
-							xx = myRound(x);
-							
-
-							//dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
-							//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
-							
-							//if (xx < 0 || SCREEN_WIDTH <= xx || yy < 0 || SCREEN_HEIGHT <= yy) continue;
-							if (dd < g_pZBuffer[yy][xx])
-							{
-								drawPixelColor(xx, yy, colour);
-								g_pZBuffer[yy][xx] = dd;
-							}
-							dd += k1;
-						}
-						Left->xmin = Left->xmin + Left->incr;
-						Right->xmin = Right->xmin + Right->incr;
-
-						if (Left->xmin > Right->xmin)
-						{
-							tmp = Left;
-							Left = Right;
-							Right = tmp;
-						}
-						k4 += k2;
-					}
-
-				}
-
-
-
-
-
-				EdgeTable.finalize();
-				*/
-				
-			}
-
-
-
-
-
-
-
-
-
+			//float k1, k2, k3,k4,k5,k6,k7,k8;
+
+			//if (!bIsScanline)
+			//{
+			//	bool hit = false;
+			//	char mode = 0;
+			//	
+			//	
+			//	k1 = p1.x*p2.y - p2.x*p1.y + (p2.x - p1.x)*(myRound(minY) - 2);
+			//	k2 = p2.x*p3.y - p3.x*p2.y + (p3.x - p2.x)*(myRound(minY) - 2);
+			//	k3 = p3.x*p1.y - p1.x*p3.y + (p1.x - p3.x)*(myRound(minY) - 2);
+			//	k4 = N.x*p3.x/N.z + N.y*p3.y/N.z + p3.z;
+			//	for (int y = myRound(minY) - 1; y < myRound(maxY) + 1; y++)
+			//	{
+			//		k1 += (p2.x - p1.x);
+			//		k2 += (p3.x - p2.x);
+			//		k3 += (p1.x - p3.x);
+			//		hit = false;
+			//		if (y < 0) continue;
+			//		if (y > SCREEN_HEIGHT) break;
+			//		
+			//		//k5 = (p2.x - p1.x)*y + k1;
+			//		//k6 = (p3.x - p2.x)*y + k2;
+			//		//k7 = (p1.x - p3.x)*y + k3;
+			//		
+			//		for (int x = myRound(minX) - 1; x < myRound(maxX) + 1; x++)
+			//		{
+			//			aa = k1+(p1.y - p2.y)*x;// +(p2.x - p1.x)*y + p1.x*p2.y - p2.x*p1.y;
+			//			bb = k2+(p2.y - p3.y)*x;// +(p3.x - p2.x)*y + p2.x*p3.y - p3.x*p2.y;
+			//			cc = k3+(p3.y - p1.y)*x;// +(p1.x - p3.x)*y + p3.x*p1.y - p1.x*p3.y;
+			//			if (aa <  0 && bb  <   0 && cc  < 0)
+			//			{
+			//				if (x < 0 || SCREEN_WIDTH <= x || y < 0 || SCREEN_HEIGHT <= y) continue;
+			//				hit = true;
+			//				dd = k4 - N.x*x / N.z - N.y*y / N.z;
+			//				if (dd < g_pZBuffer[y][x])
+			//				{
+			//					//아래 주석 해제하면 pixel단위 lighting
+			//					
+			//					/*
+			//					//lighting
+			//					_POINT3D L,NOW;
+			//					Init_Vector3D(NOW, x, y, dd);
+			//					Sub_Vector3D(L, VertexShader.m_lighting, NOW);
+			//					Normalize_Vector3D(L);
+			//					float dist = sqrt((VertexShader.m_lighting.x - NOW.x)*(VertexShader.m_lighting.x - NOW.x)
+			//					+ (VertexShader.m_lighting.y - NOW.y)*(VertexShader.m_lighting.y - NOW.y)
+			//					+ (VertexShader.m_lighting.z - NOW.z)*(VertexShader.m_lighting.z - NOW.z)
+			//					);
+			//					float ka = 0.5;
+			//					float kd = 0.9;
+			//					int ia = 255;
+			//					int id = 255;
+			//					float ar = ka*ia;
+			//					float dr = kd*id*(N.x*L.x + N.y*L.y + N.z*L.z);
+			//					float light = (ar + dr) / (0 + 0.0027*dist + 0 * dist*dist);
+			//					int colour = myRound(light);
+			//					if (colour > 255) colour = 255;
+			//					else if (colour < 0) colour = 0;
+			//					
+			//					*/
+			//					//ㅡㅡ
+			//					drawPixelColor(x, y, pFace[i].nColor);
+			//					g_pZBuffer[y][x] = dd;
+			//				}
+			//			}
+			//			else
+			//			{
+			//				if (hit)
+			//					break;
+			//			}
+			//		}
+			//	}
+			//}
+			//else
+			//{
+			//	//scanline FILL ALgorithm
+			//	//EdgeEntryWrapper_NEW EdgeTable[2];
+			//	float ____minY;
+			//	
+			//	/*
+			//	//edgeEntry from p1 to p2
+			//	pEdgeEntry1.ymax = max(p1.y, p2.y);
+			//	if (p1.y == p2.y)//horizontal line
+			//	{
+			//		pEdgeEntry1.pNext = (EdgeEntry_NEW*)-1;
+			//	}
+			//	else//non-horizontal
+			//	{
+			//		pEdgeEntry1.pNext = NULL;
+			//		pEdgeEntry1.incr = (p1.x - p2.x) / (p1.y - p2.y);
+			//		____minY = min(p1.y, p2.y);
+			//		if (p1.y == ____minY) pEdgeEntry1.xmin = p1.x;
+			//		else pEdgeEntry1.xmin = p2.x;					
+			//	}
+			//	
+			//	//edgeEntry from p2 to p3
+			//	pEdgeEntry2.ymax = max(p2.y, p3.y);
+			//	if (p2.y == p3.y)//horizontal line
+			//	{
+			//		pEdgeEntry2.pNext = (EdgeEntry_NEW*)-1;
+			//	}
+			//	else//non-horizontal
+			//	{
+			//		pEdgeEntry2.pNext = NULL;
+			//		pEdgeEntry2.incr = (p2.x - p3.x) / (p2.y - p3.y);
+			//		____minY = min(p2.y, p3.y);
+			//		if (p2.y == ____minY) pEdgeEntry2.xmin = p2.x;
+			//		else pEdgeEntry2.xmin = p3.x;
+			//	}
+			//	//edgeEntry from p3 to p1
+			//	pEdgeEntry3.ymax = max(p1.y, p3.y);
+			//	if (p1.y == p3.y)//horizontal line
+			//	{
+			//		pEdgeEntry3.pNext = (EdgeEntry_NEW*)-1;
+			//	}
+			//	else//non-horizontal
+			//	{
+			//		pEdgeEntry3.pNext = NULL;
+			//		pEdgeEntry3.incr = (p1.x - p3.x) / (p1.y - p3.y);
+			//		____minY = min(p1.y, p3.y);
+			//		if (p1.y == ____minY) pEdgeEntry3.xmin = p1.x;
+			//		else pEdgeEntry3.xmin = p3.x;
+			//	}
+			//	*/
+			//	// do something;
+			//	
+			//	// EdgeTable[]
+			//	///////////
+			//	/*
+			//	EdgeTable.Initialize(i);
+			//	if (EdgeTable.m_EdgeTable.empty())
+			//	{
+			//		printf("????????????????\n");
+			//		continue;
+			//	}
+			//	float bucket[3] = { 0, 0, 0 };
+			//	char cnt = 0;
+			//	for (std::list<EdgeIndex>::iterator pos = EdgeTable.m_EdgeTable.begin(); pos != EdgeTable.m_EdgeTable.end(); pos++)
+			//	{
+			//		bucket[cnt] = pos->y;
+			//		cnt++;
+			//	}
+			//	//printf("%f %f %f\n", bucket[0], bucket[1], bucket[2]);
+			//	float k1, k2, k3,k4;
+			//	
+			//	//z값 보간
+			//	//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
+			//	//-> dd = k1*x + k2+y + k3으로
+			//	k1 = -(N.x / N.z);
+			//	k2 = -(N.y / N.z);
+			//	k3 = (N.x*p3.x+ N.y*p3.y) / N.z + p3.z;
+			//	float from, to;
+			//	if (bucket[1] == 0)
+			//	{
+			//		for (std::list<EdgeEntryWrapper>::iterator pos = EdgeTable.m_EdgeTable.front().Entry.begin(); pos != EdgeTable.m_EdgeTable.front().Entry.end(); pos++)
+			//		{
+			//			EdgeEntryWrapper ITEM;
+			//			ITEM.pEntry = pos->pEntry;
+			//			EdgeTable.m_MergeList.push_back(ITEM);
+			//		}
+			//		EdgeEntry* Left;
+			//		EdgeEntry* Right;
+			//		EdgeEntry* tmp;
+			//		Left = EdgeTable.m_MergeList.front().pEntry;
+			//		Right = EdgeTable.m_MergeList.back().pEntry;
+			//		if (Left->xmin > Right->xmin)
+			//		{
+			//			tmp = Left;
+			//			Left = Right;
+			//			Right = tmp;
+			//		}
+			//		int xx, yy;
+			//		float dd;
+			//		///clipping??
+			//		//if (maxY > SCREEN_HEIGHT) maxY = SCREEN_HEIGHT;
+			//		///////
+			//		
+			//		k4 = k2*bucket[0] + k3;
+			//		for (float y = bucket[0]; y < maxY; y++)
+			//		{
+			//			if (y < 0)
+			//			{
+			//				k4 += k2;
+			//				continue;
+			//			}
+			//			if (y >= SCREEN_HEIGHT) break;
+			//		
+			//			if (Left->xmin - 1 < 0) from = 0;
+			//			else from = Left->xmin - 1;
+			//			if (SCREEN_WIDTH <= Right->xmin + 1) to = SCREEN_WIDTH;
+			//			else to = Right->xmin + 1;
+			//			
+			//			//yy = myRound(y);
+			//			//k4 = k2*yy + k3;
+			//			dd = k1*from + k4;
+			//			yy = myRound(y);
+			//			for (float x = from ; x < to ; x++)
+			//			{
+			//				//if (x < 0) continue;
+			//				//if (x >= SCREEN_WIDTH) break;
+			//				xx = myRound(x);
+			//				
+			//				//dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
+			//				//dd = -(N.x/N.z)*x + N.x*p3.x/N.z - (N.y/N.z)*y + N.y*p3.y/N.z + p3.z;
+			//				//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
+			//				
+			//				
+			//			//	if (xx < 0 || SCREEN_WIDTH <= xx || yy < 0 || SCREEN_HEIGHT <= yy) continue;
+			//				if (dd < g_pZBuffer[yy][xx])
+			//				{
+			//					drawPixelColor(xx, yy, colour);
+			//					g_pZBuffer[yy][xx] = dd;
+			//				}
+			//				dd += k1;
+			//			}
+			//			Left->xmin = Left->xmin + Left->incr;
+			//			Right->xmin = Right->xmin + Right->incr;
+			//			if (Left->xmin > Right->xmin)
+			//			{
+			//				tmp = Left;
+			//				Left = Right;
+			//				Right = tmp;
+			//			}
+			//			k4 += k2;
+			//		}
+			//	}
+			//	else
+			//	{
+			//		for (std::list<EdgeEntryWrapper>::iterator pos = EdgeTable.m_EdgeTable.front().Entry.begin(); pos != EdgeTable.m_EdgeTable.front().Entry.end(); pos++)
+			//		{
+			//			EdgeEntryWrapper ITEM;
+			//			ITEM.pEntry = pos->pEntry;
+			//			EdgeTable.m_MergeList.push_back(ITEM);
+			//		}
+			//		EdgeEntry* Left;
+			//		EdgeEntry* Right;
+			//		EdgeEntry* tmp;
+			//		Left = EdgeTable.m_MergeList.front().pEntry;
+			//		Right = EdgeTable.m_MergeList.back().pEntry;
+			//		if (Left->xmin > Right->xmin)
+			//		{
+			//			tmp = Left;
+			//			Left = Right;
+			//			Right = tmp;
+			//		}
+			//		int xx, yy;
+			//		float dd;
+			//		k4 = k2*bucket[0] + k3;
+			//		for (float y = bucket[0]; y < bucket[1]; y++)
+			//		{
+			//			if (y < 0)
+			//			{
+			//				k4 += k2;
+			//				continue;
+			//			}
+			//			if (y >= SCREEN_HEIGHT) break;
+			//			
+			//			
+			//			if (Left->xmin - 1 < 0) from = 0;
+			//			else from = Left->xmin - 1;
+			//			if (SCREEN_WIDTH <= Right->xmin + 1) to = SCREEN_WIDTH;
+			//			else to = Right->xmin + 1;
+			//			yy = myRound(y);
+			//			//k4 = k2*yy + k3;
+			//			dd = k1*from + k4;
+			//			for (float x = from; x < to; x++)
+			//			{
+			//				//if (x < 0) continue;
+			//				//if (x >= SCREEN_WIDTH) break;
+			//				xx = myRound(x);
+			//
+			//				//dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
+			//				//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
+			//				
+			//				//if (xx < 0 || SCREEN_WIDTH <= xx || yy < 0 || SCREEN_HEIGHT <= yy) continue;
+			//				if (dd < g_pZBuffer[yy][xx])
+			//				{
+			//					drawPixelColor(xx, yy, colour);
+			//					g_pZBuffer[yy][xx] = dd;
+			//				}
+			//				dd += k1;
+			//			}
+			//			Left->xmin = Left->xmin + Left->incr;
+			//			Right->xmin = Right->xmin + Right->incr;
+			//			if (Left->xmin > Right->xmin)
+			//			{
+			//				tmp = Left;
+			//				Left = Right;
+			//				Right = tmp;
+			//			}
+			//			k4 += k2;
+			//		}
+			//		Left = EdgeTable.m_MergeList.front().pEntry;
+			//		Right = EdgeTable.m_MergeList.back().pEntry;
+			//		if (Left->ymax == bucket[1]) EdgeTable.m_MergeList.pop_front();
+			//		if (Right->ymax == bucket[1]) EdgeTable.m_MergeList.pop_back();
+			//		for (std::list<EdgeEntryWrapper>::iterator pos = EdgeTable.m_EdgeTable.back().Entry.begin(); pos != EdgeTable.m_EdgeTable.back().Entry.end(); pos++)
+			//		{
+			//			EdgeEntryWrapper ITEM;
+			//			ITEM.pEntry = pos->pEntry;
+			//			EdgeTable.m_MergeList.push_back(ITEM);
+			//		}
+			//		Left = EdgeTable.m_MergeList.front().pEntry;
+			//		Right = EdgeTable.m_MergeList.back().pEntry;
+			//		if (Left->xmin > Right->xmin)
+			//		{
+			//			tmp = Left;
+			//			Left = Right;
+			//			Right = tmp;
+			//		}
+			//		k4 = k2*bucket[1] + k3;
+			//		for (float y = bucket[1]; y < maxY; y++)
+			//		{
+			//			if (y < 0)
+			//			{
+			//				k4 += k2;
+			//				continue;
+			//			}
+			//			if (y >= SCREEN_HEIGHT) break;
+			//			if (Left->xmin - 1 < 0) from = 0;
+			//			else from = Left->xmin - 1;
+			//			if (SCREEN_WIDTH <= Right->xmin + 1) to = SCREEN_WIDTH;
+			//			else to = Right->xmin + 1;
+			//			yy = myRound(y);
+			//			//k4 = k2*yy + k3;
+			//			dd = k1*from + k4;
+			//			for (float x = from ; x < to ; x++)
+			//			{
+			//				if (x < 0) continue;
+			//				if (x >= SCREEN_WIDTH) break;
+			//				xx = myRound(x);
+			//				
+			//				//dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
+			//				//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
+			//				
+			//				//if (xx < 0 || SCREEN_WIDTH <= xx || yy < 0 || SCREEN_HEIGHT <= yy) continue;
+			//				if (dd < g_pZBuffer[yy][xx])
+			//				{
+			//					drawPixelColor(xx, yy, colour);
+			//					g_pZBuffer[yy][xx] = dd;
+			//				}
+			//				dd += k1;
+			//			}
+			//			Left->xmin = Left->xmin + Left->incr;
+			//			Right->xmin = Right->xmin + Right->incr;
+			//			if (Left->xmin > Right->xmin)
+			//			{
+			//				tmp = Left;
+			//				Left = Right;
+			//				Right = tmp;
+			//			}
+			//			k4 += k2;
+			//		}
+			//	}
+			//	EdgeTable.finalize();
+			//	*/
+			//	
+			//}
 			///////////////////////
 			
 		}
@@ -753,21 +668,14 @@ void makeCheckImage(void)
 	}
 
 
-	//thread test
-
-	g_finger = 0;
-	//printf("\n-------------------\nstep\n");
-	if (VertexShader.m_bIsMultiThread)
+	printf("process : %d\n",hello);
+	//
+	if (g_bIsMultiThread)
 	{
-
-		for (int i = 0; i < VERTEX_THREAD_NUM; i++)
-		{
-			//SetThreadPriority(m_Threads[i].native_handle(), THREAD_PRIORITY_HIGHEST);
-			SetEvent(g_hEvents[i]);
-		}
-		WaitForMultipleObjects(VERTEX_THREAD_NUM, g_hEndEvents, 1, INFINITE);
+		ThreadRasterizer.InvokeRasterizerThreads();
+		ThreadRasterizer.WaitForRasterizerThreads();
 	}
-	g_cnt = cnt;
+	
 
 
 
@@ -819,107 +727,54 @@ void initilize()
 
 	m_ptMouse.x = 320;
 	m_ptMouse.y = 240;
+	g_bIsMultiThread = true;
 	bIsScanline = false;
 	bIsWireFrame = false;
 	printf("hello");
 
-	pColor = new unsigned char[objData->faceCount];
 	
-	for (int i = 0; i < VERTEX_THREAD_NUM; i++)
-	{
-		g_bThreadRun[i] = true;
-		g_hEvents[i] = CreateEvent(NULL, false, false, NULL);
-		g_hEndEvents[i] = CreateEvent(NULL, false, false, NULL);
-
-	}
-	int start = 0;
-	int cnt = 0;
-	int mod = SCREEN_HEIGHT % SCREEN_DIVIDE;
-
-	for (int i = 0; i < SCREEN_DIVIDE; i++)
-	{
-		cnt = SCREEN_HEIGHT / SCREEN_DIVIDE;
-		if (i < mod) cnt++;
-		g_from[i] = start;
-		g_to[i] = start + cnt;
-		
-
-		//SetThreadPriority(m_Threads[i].native_handle(), THREAD_PRIORITY_HIGHEST);
-		start += cnt;
-	}
-	for (int i = 0; i < VERTEX_THREAD_NUM; i++)
-	{
-		g_Threads[i] = std::thread(&Binning,i);
-		g_Threads[i].detach();
-	}
-
-	for (int i = 0; i < VERTEX_THREAD_NUM; i++)
-	{
-		pEdgeTable[i] = new CEdgeTable(&VertexShader);
-	}
-
-	InitializeCriticalSection(&g_CS);
-
 	pFace = new MyFaceInfo[objData->faceCount];
 	for (int i = 0; i < objData->faceCount; i++)
 	{
 		pFace[i].VertexIndex[0] = objData->faceList[i]->vertex_index[0];
 		pFace[i].VertexIndex[1] = objData->faceList[i]->vertex_index[1];
 		pFace[i].VertexIndex[2] = objData->faceList[i]->vertex_index[2];
-
 	}
+	pVertice = new _POINT3D[objData->vertexCount];
 
+	for (int i = 0; i < objData->vertexCount; i++)
+	{
+		pVertice[i].x = objData->vertexList[i]->e[0];
+		pVertice[i].y = objData->vertexList[i]->e[1];
+		pVertice[i].z = objData->vertexList[i]->e[2];
+	}
+	VertexShader.startup(objData->vertexCount);
+	ThreadRasterizer.SetFacePtr(pFace);
+	ThreadRasterizer.SetVertexPtr(VertexShader.m_pPoints);
+	ThreadRasterizer.SetNumOfFace(objData->faceCount);
+	ThreadRasterizer.SetScreenBufferPtr(g_pScreenImage);
+	ThreadRasterizer.SetBinningValue(1, 1);
+	
+	ThreadRasterizer.CreateRasterizerThreads(1);
+	
+
+
+	
+	printf("# of vertice : %d\n", objData->vertexCount);
 	printf("# of face : %d\n", objData->faceCount);
+	printf("number key : # of threads\n");
+	printf("0 : refresh screen");
+	printf("b : start benchmark\n");
+	printf("v : change binning info\n");
+	delete objData;
 }
 
 
 void finalize()
 {
-	/*
-	Vertex* now = g_pVertex;
-	Vertex* prev;
-	while (1)
-	{
-		if (now == NULL) break;
-		prev = now;
-		now = now->next;
-		delete prev;
-	}
 
-	Triangular_Face* now2 = g_pTriangular_Face;
-	Triangular_Face* prev2;
-	while (1)
-	{
-		if (now2 == NULL) break;
-		prev2 = now2;
-		now2 = now2->next;
-		delete prev2;
-	}
-	*/
-	for (int i = 0; i < VERTEX_THREAD_NUM; i++)
-	{
-		g_bThreadRun[i] = false;
-		SetEvent(g_hEvents[i]);
-	}
-	//printf("11231313\n");
-	WaitForMultipleObjects(VERTEX_THREAD_NUM, g_hEndEvents, true, INFINITE);
-	for (int i = 0; i < VERTEX_THREAD_NUM; i++)
-	{
-		//m_Threads[i].join();
-
-		CloseHandle(g_hEvents[i]);
-		CloseHandle(g_hEndEvents[i]);
-	}
-
-	delete objData;
-	delete pColor;
-	for (int i = 0; i < VERTEX_THREAD_NUM; i++)
-	{
-		delete pEdgeTable[i];
-	}
-
-	DeleteCriticalSection(&g_CS);
 	delete pFace;
+	delete pVertice;
 
 }
 
@@ -1067,8 +922,9 @@ void keyboard( unsigned char key, int x, int y)
 	
 	HMODULE hCurrentModule = nullptr;
 	_POINT3D v;
+	int row, col;
+
 	
-	VertexShader.m_bIsMultiThread = true;
 
 	switch( key )
 	{	
@@ -1133,39 +989,35 @@ void keyboard( unsigned char key, int x, int y)
 		Benchmark();
 		break;
 	case '1':
-		printf("Sequential Pipeline Test(inside check)\n");
-		VertexShader.m_bIsMultiThread = false;
-		bIsScanline = false;
-		Benchmark();
-		break;
 	case '2':
-		printf("Sequential Pipeline Test(Scanline)\n");
-		VertexShader.m_bIsMultiThread = false;
-		bIsScanline = true;
-		Benchmark();
-		break;
 	case '3':
-		printf("Parallel Pipeline Test(inside check)\n");
-		VertexShader.m_bIsMultiThread = true;
-		bIsScanline = false;
-		Benchmark();
-		break;
 	case '4':
-		printf("Wire Frame Rendering Test\n");
-		VertexShader.m_bIsMultiThread = false;
-		bIsScanline = false;
-		bIsWireFrame = true;
-		Benchmark();
-		break;
+	case '5':
+	case '6':
+	case '7':
+	case '8':
 	case '9':
-		printf("Serial Pipeline Test\n");
-		VertexShader.m_bIsMultiThread = false;
-		PipelineCheck();
+		printf("Sequential Pipeline Test(inside check)\n");
+		ThreadRasterizer.DeleteRasterizerThreads();
+		ThreadRasterizer.CreateRasterizerThreads(key-'0');
+		bIsScanline = false;
 		break;
 	case '0':
 		printf("Parallel Pipeline Test\n");
-		VertexShader.m_bIsMultiThread = true;
 		PipelineCheck();
+		break;
+	case 'v':
+		scanf("%d %d\n", &row, &col);
+		if (SCREEN_HEIGHT%row == 0 && SCREEN_WIDTH%col == 0)
+		{
+			ThreadRasterizer.DeleteRasterizerThreads();
+			ThreadRasterizer.SetBinningValue(row, col);
+			ThreadRasterizer.CreateRasterizerThreads(DONT_CHANGE);
+		}
+		else
+		{
+			printf("640/480의 약수 입력만 가능\n");
+		}
 		break;
 
 	default:
@@ -1173,9 +1025,6 @@ void keyboard( unsigned char key, int x, int y)
 		
 	}
 	display();
-	VertexShader.m_bIsMultiThread = false;
-	bIsScanline = false;
-	bIsWireFrame = false;
 }
 
 int main( int argc, char** argv)
@@ -1283,473 +1132,4 @@ void PipelineCheck()
 	dwEndTime = timeGetTime();
 
 	printf("elapsed time : %d ms\n", dwEndTime - dwStartTime);
-}
-
-void Binning(int id) {
-	printf("Thread %d \n",id);
-	/*int i = id*(p->m_nVertexCount / VERTEX_THREAD_NUM);
-	int End = (p->m_nVertexCount/VERTEX_THREAD_NUM) * (id+1);
-	if (i == VERTEX_THREAD_NUM*(VERTEX_THREAD_NUM - 1) && End < p->m_nVertexCount)
-	End = p->m_nVertexCount;
-	_POINT3D temp;
-	float z;*/
-	int Hfrom = (SCREEN_HEIGHT / 5)*id;
-	int Hto = SCREEN_HEIGHT / 5 * (id + 1);
-
-	int a, b, c;
-
-	__POINT3D p1, p2, p3;
-	float maxX, minX, maxY, minY;
-	float aa, bb, cc,dd;
-	int myFinger;
-	bool isDraw;
-	int cnt;
-	int totalcnt;
-	while (1)
-	{
-		WaitForSingleObject(g_hEvents[id], INFINITE);
-		//	printf("GET!! : %d\n", id);
-		if (g_bThreadRun[id] == false)
-		{
-			printf("ready to kill thread %d...\n", id);
-			break;
-		}
-		
-		cnt = 0;
-		totalcnt = 0;
-
-		while (1)
-		{
-
-			EnterCriticalSection(&g_CS);
-			myFinger = g_finger;
-			//if (myFinger >= SCREEN_DIVIDE)
-			{
-				//LeaveCriticalSection(&g_CS);
-				//break;
-			}
-	//		else
-			g_finger++;
-			LeaveCriticalSection(&g_CS);
-
-			//printf("thread %d get %d\n", id, myFinger);
-			if (myFinger >= SCREEN_DIVIDE)
-			{	
-				SetEvent(g_hEndEvents[id]);
-				break;
-			}
-
-
-			Hfrom = (SCREEN_HEIGHT / SCREEN_DIVIDE)*myFinger;
-			Hto = SCREEN_HEIGHT / SCREEN_DIVIDE * (myFinger + 1);
-
-			bool hit = false;
-			char mode = 0;
-			bool bIsInside;
-			//char cnt;
-
-			for (int i = 0; i < objData->faceCount; i++)
-			{
-				if (pFace[i].bisBackFace) continue;
-				totalcnt++;
-				a = objData->faceList[i]->vertex_index[0];
-				b = objData->faceList[i]->vertex_index[1];
-				c = objData->faceList[i]->vertex_index[2];
-
-
-
-
-				p1.x = VertexShader.m_pPoints[a].x;
-				p1.y = VertexShader.m_pPoints[a].y;
-				p1.z = VertexShader.m_pPoints[a].z;
-
-				p2.x = VertexShader.m_pPoints[b].x;
-				p2.y = VertexShader.m_pPoints[b].y;
-				p2.z = VertexShader.m_pPoints[b].z;
-
-				p3.x = VertexShader.m_pPoints[c].x;
-				p3.y = VertexShader.m_pPoints[c].y;
-				p3.z = VertexShader.m_pPoints[c].z;
-
-
-
-				maxX = max(p1.x, p2.x);
-				maxX = max(maxX, p3.x);
-				//if (maxX > 640) maxX = 638;
-
-				maxY = max(p1.y, p2.y);
-				maxY = max(maxY, p3.y);
-				//if (maxY > 480) maxY = 478;
-
-				minX = min(p1.x, p2.x);
-				minX = min(minX, p3.x);
-				//	if (minX < 0) minX = 1;
-
-				minY = min(p1.y, p2.y);
-				minY = min(minY, p3.y);
-
-				bIsInside = false;
-				//cnt = 0;
-
-				if (0 <= maxX && minX < 640 && Hfrom <= maxY && minY < Hto) bIsInside = true;
-				//if (Hfrom <= maxY && minY < Hto) bIsInside = true;
-
-				if (!bIsInside) continue;
-				
-				/*
-				pEdgeTable[id]->Initialize(i);
-
-				if (pEdgeTable[id]->m_EdgeTable.empty())
-				{
-				printf("????????????????\n");
-				continue;
-				}
-				float bucket[3] = { 0, 0, 0 };
-				char cnt = 0;
-				for (std::list<EdgeIndex>::iterator pos = pEdgeTable[id]->m_EdgeTable.begin(); pos != pEdgeTable[id]->m_EdgeTable.end(); pos++)
-				{
-				bucket[cnt] = pos->y;
-				cnt++;
-				}
-				//printf("%f %f %f\n", bucket[0], bucket[1], bucket[2]);
-
-				float k1, k2, k3, k4;
-
-				//z값 보간
-				//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
-				//-> dd = k1*x + k2+y + k3으로
-				k1 = -(VertexShader.m_pNormVec[i].x / VertexShader.m_pNormVec[i].z);
-				k2 = -(VertexShader.m_pNormVec[i].y / VertexShader.m_pNormVec[i].z);
-				k3 = (VertexShader.m_pNormVec[i].x*p3.x + VertexShader.m_pNormVec[i].y*p3.y) / VertexShader.m_pNormVec[i].z + p3.z;
-
-				float from, to;
-
-				if (bucket[1] == 0)
-				{
-				for (std::list<EdgeEntryWrapper>::iterator pos = pEdgeTable[id]->m_EdgeTable.front().Entry.begin(); pos != pEdgeTable[id]->m_EdgeTable.front().Entry.end(); pos++)
-				{
-				EdgeEntryWrapper ITEM;
-				ITEM.pEntry = pos->pEntry;
-
-				pEdgeTable[id]->m_MergeList.push_back(ITEM);
-				}
-
-
-				EdgeEntry* Left;
-				EdgeEntry* Right;
-				EdgeEntry* tmp;
-				Left = pEdgeTable[id]->m_MergeList.front().pEntry;
-				Right = pEdgeTable[id]->m_MergeList.back().pEntry;
-				if (Left->xmin > Right->xmin)
-				{
-				tmp = Left;
-				Left = Right;
-				Right = tmp;
-				}
-
-				int xx, yy;
-				float dd;
-
-				///clipping??
-				//if (maxY > SCREEN_HEIGHT) maxY = SCREEN_HEIGHT;
-
-				///////
-
-				k4 = k2*bucket[0] + k3;
-
-				for (float y = bucket[0]; y < maxY; y++)
-				{
-				if (y < Hfrom)
-				{
-				k4 += k2;
-				continue;
-				}
-				if (y >= Hto) break;
-
-				if (Left->xmin - 1 < 0) from = 0;
-				else from = Left->xmin - 1;
-				if (SCREEN_WIDTH <= Right->xmin + 1) to = SCREEN_WIDTH;
-				else to = Right->xmin + 1;
-
-				//yy = myRound(y);
-				//k4 = k2*yy + k3;
-				dd = k1*from + k4;
-				yy = myRound(y);
-				for (float x = from; x < to; x++)
-				{
-				if (x < 0) continue;
-				if (x >= SCREEN_WIDTH) break;
-				xx = myRound(x);
-
-				//dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
-				//dd = -(N.x/N.z)*x + N.x*p3.x/N.z - (N.y/N.z)*y + N.y*p3.y/N.z + p3.z;
-				//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
-
-
-
-
-
-				//	if (xx < 0 || SCREEN_WIDTH <= xx || yy < 0 || SCREEN_HEIGHT <= yy) continue;
-				if (dd < g_pZBuffer[yy][xx])
-				{
-				drawPixelColor(xx, yy, pColor[i]);
-				g_pZBuffer[yy][xx] = dd;
-				}
-				dd += k1;
-
-				}
-				Left->xmin = Left->xmin + Left->incr;
-				Right->xmin = Right->xmin + Right->incr;
-
-				if (Left->xmin > Right->xmin)
-				{
-				tmp = Left;
-				Left = Right;
-				Right = tmp;
-				}
-				k4 += k2;
-				}
-
-				}
-				else
-				{
-				for (std::list<EdgeEntryWrapper>::iterator pos = pEdgeTable[id]->m_EdgeTable.front().Entry.begin(); pos != pEdgeTable[id]->m_EdgeTable.front().Entry.end(); pos++)
-				{
-				EdgeEntryWrapper ITEM;
-				ITEM.pEntry = pos->pEntry;
-
-				pEdgeTable[id]->m_MergeList.push_back(ITEM);
-				}
-
-
-				EdgeEntry* Left;
-				EdgeEntry* Right;
-				EdgeEntry* tmp;
-				Left = pEdgeTable[id]->m_MergeList.front().pEntry;
-				Right = pEdgeTable[id]->m_MergeList.back().pEntry;
-				if (Left->xmin > Right->xmin)
-				{
-				tmp = Left;
-				Left = Right;
-				Right = tmp;
-				}
-
-				int xx, yy;
-				float dd;
-
-				k4 = k2*bucket[0] + k3;
-				for (float y = bucket[0]; y < bucket[1]; y++)
-				{
-				if (y < Hfrom)
-				{
-				k4 += k2;
-				continue;
-				}
-				if (y >= Hto) break;
-
-
-				if (Left->xmin - 1 < 0) from = 0;
-				else from = Left->xmin - 1;
-				if (SCREEN_WIDTH <= Right->xmin + 1) to = SCREEN_WIDTH;
-				else to = Right->xmin + 1;
-
-
-				yy = myRound(y);
-				//k4 = k2*yy + k3;
-				dd = k1*from + k4;
-				for (float x = from; x < to; x++)
-				{
-				//if (x < 0) continue;
-				//if (x >= SCREEN_WIDTH) break;
-
-				xx = myRound(x);
-
-				//dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
-				//dd = -((N.x / N.z)*x + (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
-
-
-
-
-
-
-				//if (xx < 0 || SCREEN_WIDTH <= xx || yy < 0 || SCREEN_HEIGHT <= yy) continue;
-				if (dd < g_pZBuffer[yy][xx])
-				{
-				drawPixelColor(xx, yy, pColor[i]);
-				g_pZBuffer[yy][xx] = dd;
-				}
-				dd += k1;
-				}
-				Left->xmin = Left->xmin + Left->incr;
-				Right->xmin = Right->xmin + Right->incr;
-
-				if (Left->xmin > Right->xmin)
-				{
-				tmp = Left;
-				Left = Right;
-				Right = tmp;
-				}
-				k4 += k2;
-				}
-
-				Left = pEdgeTable[id]->m_MergeList.front().pEntry;
-				Right = pEdgeTable[id]->m_MergeList.back().pEntry;
-				if (Left->ymax == bucket[1]) pEdgeTable[id]->m_MergeList.pop_front();
-				if (Right->ymax == bucket[1]) pEdgeTable[id]->m_MergeList.pop_back();
-
-				for (std::list<EdgeEntryWrapper>::iterator pos = pEdgeTable[id]->m_EdgeTable.back().Entry.begin(); pos != pEdgeTable[id]->m_EdgeTable.back().Entry.end(); pos++)
-				{
-				EdgeEntryWrapper ITEM;
-				ITEM.pEntry = pos->pEntry;
-
-				pEdgeTable[id]->m_MergeList.push_back(ITEM);
-				}
-
-				Left = pEdgeTable[id]->m_MergeList.front().pEntry;
-				Right = pEdgeTable[id]->m_MergeList.back().pEntry;
-				if (Left->xmin > Right->xmin)
-				{
-				tmp = Left;
-				Left = Right;
-				Right = tmp;
-				}
-
-				k4 = k2*bucket[1] + k3;
-				for (float y = bucket[1]; y < maxY; y++)
-				{
-				if (y < Hfrom)
-				{
-				k4 += k2;
-				continue;
-				}
-				if (y >= Hto) break;
-
-
-				if (Left->xmin - 1 < 0) from = 0;
-				else from = Left->xmin - 1;
-				if (SCREEN_WIDTH <= Right->xmin + 1) to = SCREEN_WIDTH;
-				else to = Right->xmin + 1;
-
-				yy = myRound(y);
-				//k4 = k2*yy + k3;
-				dd = k1*from + k4;
-				for (float x = from; x < to; x++)
-				{
-				if (x < 0) continue;
-				if (x >= SCREEN_WIDTH) break;
-
-				xx = myRound(x);
-
-
-				//dd = (N.x*(x - p3.x) + N.y*(y - p3.y)) / (-N.z) + p3.z;
-				//dd = -((N.x / N.z)*x +\ (N.y / N.z)*y) + N.x*p3.x / N.z + N.y*p3.y / N.z + p3.z;
-
-				//if (xx < 0 || SCREEN_WIDTH <= xx || yy < 0 || SCREEN_HEIGHT <= yy) continue;
-				if (dd < g_pZBuffer[yy][xx])
-				{
-				drawPixelColor(xx, yy, pColor[i]);
-				g_pZBuffer[yy][xx] = dd;
-				}
-				dd += k1;
-				}
-				Left->xmin = Left->xmin + Left->incr;
-				Right->xmin = Right->xmin + Right->incr;
-
-				if (Left->xmin > Right->xmin)
-				{
-				tmp = Left;
-				Left = Right;
-				Right = tmp;
-				}
-				k4 += k2;
-				}
-
-				}
-
-
-
-
-
-				pEdgeTable[id]->finalize();
-
-
-				*/
-
-				
-				float k1, k2, k3, k4, k5, k6, k7, k8;	
-
-				k1 = p1.x*p2.y - p2.x*p1.y + (p2.x - p1.x)*(myRound(minY) - 2);
-				k2 = p2.x*p3.y - p3.x*p2.y + (p3.x - p2.x)*(myRound(minY) - 2);
-				k3 = p3.x*p1.y - p1.x*p3.y + (p1.x - p3.x)*(myRound(minY) - 2);
-
-				isDraw = false;
-				for (int y = myRound(minY) - 1; y < myRound(maxY) + 1; y++)
-				{
-					k1 += (p2.x - p1.x);
-					k2 += (p3.x - p2.x);
-					k3 += (p1.x - p3.x);
-
-					hit = false;
-					if (y < Hfrom) continue;
-					if (y >= Hto) break;
-					
-					
-					aa = k1 + (p1.y - p2.y) * (myRound(minX) - 2);
-					bb = k2 + (p2.y - p3.y) * (myRound(minX) - 2);
-					cc = k3 + (p3.y - p1.y) * (myRound(minX) - 2);
-
-					for (int x = myRound(minX) - 1; x < myRound(maxX) + 1; x++)
-					{
-						
-						aa += (p1.y - p2.y);
-						bb += (p2.y - p3.y);
-						cc += (p3.y - p1.y);
-						//aa = (p1.y - p2.y)*x + (p2.x - p1.x)*y + p1.x*p2.y - p2.x*p1.y;
-						//   = p1.y*x - p2.y*x + p2.x*y - p1.x*y + p1.x*p2.y - p2.x*p1.y;
-						
-						//bb = (p2.y - p3.y)*x + (p3.x - p2.x)*y + p2.x*p3.y - p3.x*p2.y;
-						//   = p2.y*x - p3.y*x + p3.x*y - p2.x*y + p2.x*p3.y - p3.x*p2.y;
-
-						//cc = (p3.y - p1.y)*x + (p1.x - p3.x)*y + p3.x*p1.y - p1.x*p3.y;
-						//   = p3.y*x - p1.y*x + p1.x*y - p3.x*y + p3.x*p1.y - p1.x*p3.y;
-						if (aa < 0 && bb < 0 && cc < 0)
-						{
-							if (x < 0 || SCREEN_WIDTH <= x || y < Hfrom || Hto <= y) continue;
-							hit = true;
-							dd = (pFace[i].NormVec.x*(x - p3.x) + pFace[i].NormVec.y*(y - p3.y)) / (-pFace[i].NormVec.z) + p3.z;
-
-
-							if (dd < g_pZBuffer[y][x])
-							{
-
-								drawPixelColor(x, y, pFace[i].nColor);
-								g_pZBuffer[y][x] = dd;
-								isDraw = true;
-							}
-
-
-						}
-						else
-						{
-							if (hit)
-								break;
-						}
-
-
-
-					}
-				}
-				if (!isDraw){
-					cnt++;
-					//printf("%d(%d,%d) is not drawing : %.2f,%.2f/%.2f,%.2f/%.2f,%.2f\n", id,Hfrom,Hto,p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
-				}
-
-			}
-		}
-		//printf("%d  skip %d total : %d\n", id,cnt,totalcnt);
-		
-		
-	}
-	printf("Thread %d is killed!\n", id);
-	SetEvent(g_hEndEvents[id]);
 }

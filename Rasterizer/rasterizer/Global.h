@@ -23,6 +23,8 @@ typedef struct _Matrix3D{
 
 } Matrix3D;
 
+
+
 extern void Mat3D_Mul(Matrix3D& m, Matrix3D& m1, Matrix3D& m2);
 extern void Mat3D_Vec_Mul(Vector& p, Vector& v, Matrix3D& m);
 extern objLoader *objData;
@@ -42,6 +44,16 @@ typedef struct __POINT3D
 	float w;
 
 } _POINT3D, *_LPPOINT3D;
+
+
+typedef struct _MyFaceInfo
+{
+	int VertexIndex[3];
+	_POINT3D NormVec;
+	bool bisBackFace;
+	char nColor;
+} MyFaceInfo;
+
 
 typedef struct __PLANE3D
 {
@@ -116,3 +128,5 @@ extern float Length_Vector3D(_POINT3D v);
 extern float Dot_Vector3D(_POINT3D v1, _POINT3D v2);
 extern void Normalize_Vector3D(_POINT3D& v);
 
+extern MyFaceInfo *pFace;
+extern _POINT3D *pVertice;

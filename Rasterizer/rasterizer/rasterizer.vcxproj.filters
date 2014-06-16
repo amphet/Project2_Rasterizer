@@ -34,11 +34,9 @@
     <ClCompile Include="EdgeTable.cpp">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="MultiThreadRasterizer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="glut.h">
-      <Filter>Header</Filter>
-    </ClInclude>
     <ClInclude Include="list.h">
       <Filter>OBJLoader</Filter>
     </ClInclude>
@@ -69,6 +67,8 @@
     <ClInclude Include="EdgeTable.h">
       <Filter>Header</Filter>
     </ClInclude>
+    <ClInclude Include="MultiThreadRasterizer.h" />
+    <ClInclude Include="glut.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="objTester\objTester\objTester.sln" />
