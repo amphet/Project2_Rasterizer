@@ -176,19 +176,12 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, BYTE (*screen)[6
 	e3 = makeEdge(p3, p1);	// e3: p3~p1
 	initEdgeTable(ETable, e1, e2, e3);
 
-<<<<<<< HEAD
 //	printEdgeTable(ETable);	//debug
 	float topmostY = max(p1.y, p2.y);
 	topmostY = max(topmostY, p3.y);
 	int topmosty = myRound(topmostY);
 //	std::cout << topmosty << "\n";	//debug
-=======
-	//printEdgeTable(ETable);
-	float topmostY = max(p1.y, p2.y);
-	topmostY = max(topmostY, p3.y);
-	int topmosty = myRound(topmostY);
-	//	std::cout << topmosty << "\n";
->>>>>>> origin/master
+
 	int fromx, tox;
 	int fidx, tidx;
 	fidx = 0;
@@ -201,11 +194,8 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, BYTE (*screen)[6
 		else fromx = myRound(ETable[fidx].xmin + fcnt * ETable[fidx].incr);
 		if (1 / ETable[tidx].incr == 0) tox = myRound(ETable[tidx].xmin);
 		else tox = myRound(ETable[tidx].xmin + tcnt * ETable[tidx].incr);
-<<<<<<< HEAD
 //		std::cout << "from " << fromx << " to " << tox << "/idx: " << fidx << ", " << tidx << "\n";	// debug
-=======
-		//std::cout << "from " << fromx << " to " << tox << "/idx: " << fidx << ", " << tidx << "\n";	// debug
->>>>>>> origin/master
+
 		for (int x = fromx; x <= tox; x++)
 		{
 			screen[y][x][0] = color;
