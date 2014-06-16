@@ -1,6 +1,8 @@
 #pragma once
 #include "Global.h"
 #include <thread>
+#include "Rasterizer.h"
+
 #define DONT_CHANGE 0
 
 #define DEFAULT_THREAD_NUM 1
@@ -13,9 +15,10 @@ public:
 	std::thread m_pThreads[9];
 	HANDLE *m_pEvents;
 	HANDLE *m_pEndEvents;
+	HANDLE *m_pKillEvents;
 	bool m_bThreadRun;
 	CRITICAL_SECTION m_CS;
-
+	
 
 	
 	MyFaceInfo *m_pFace;
