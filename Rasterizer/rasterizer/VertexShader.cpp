@@ -78,18 +78,23 @@ Vertex* CVertexShader::Launch()
 {
 	//if (initialized) return m_pVertex;
 	
-	_POINT3D p;
+	_POINT3D p,cp;
 	
 	
 	for (int i = 0; i < m_nVertexCount; i++)
 	{
 
-		m_pPoints[i].x = pVertice[i].x;
+		/*m_pPoints[i].x = pVertice[i].x;
 		m_pPoints[i].y = pVertice[i].y;
 		m_pPoints[i].z = pVertice[i].z;
-		m_pPoints[i].w = 0;
-			
-		Mult_VM3D(p, m_pPoints[i], g_lpCamera3D->mcam);
+		m_pPoints[i].w = 0;*/
+		
+		cp.x = pVertice[i].x;
+		cp.y = pVertice[i].y;
+		cp.z = pVertice[i].z;
+		cp.w = 0;
+
+		Mult_VM3D(p, cp, g_lpCamera3D->mcam);
 		float z = p.z;
 
 		if (z > 1.0f) z = g_lpCamera3D->zoom / z;

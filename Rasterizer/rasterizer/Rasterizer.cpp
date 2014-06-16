@@ -28,7 +28,7 @@ EdgeRecord makeEdge(_POINT3D p1, _POINT3D p2)
 		_y = myRound(p1.y);
 		_xmin = p1.x;
 		_ymax = p2.y;
-	} 
+	}
 	else
 	{
 		_y = myRound(p2.y);
@@ -36,15 +36,15 @@ EdgeRecord makeEdge(_POINT3D p1, _POINT3D p2)
 		_ymax = p1.y;
 	}
 	EdgeRecord ret;
-	initEdgeRecord(&ret, _y, _xmin, _ymax, (p1.x - p2.x)/(p1.y - p2.y));
+	initEdgeRecord(&ret, _y, _xmin, _ymax, (p1.x - p2.x) / (p1.y - p2.y));
 	return ret;
 }
 
 void initEdgeTable(EdgeRecord EdgeTable[3], EdgeRecord e1, EdgeRecord e2, EdgeRecord e3)
 {
-	if(e1.y < e2.y)
+	if (e1.y < e2.y)
 	{
-		if(e1.y < e3.y)
+		if (e1.y < e3.y)
 		{
 			EdgeTable[0] = e1;
 			if (e2.y < e3.y)
@@ -67,10 +67,10 @@ void initEdgeTable(EdgeRecord EdgeTable[3], EdgeRecord e1, EdgeRecord e2, EdgeRe
 	}
 	else
 	{
-		if(e2.y < e3.y)
+		if (e2.y < e3.y)
 		{
 			EdgeTable[0] = e2;
-			if(e1.y < e3.y)
+			if (e1.y < e3.y)
 			{
 				EdgeTable[1] = e1;
 				EdgeTable[2] = e3;
@@ -89,18 +89,18 @@ void initEdgeTable(EdgeRecord EdgeTable[3], EdgeRecord e1, EdgeRecord e2, EdgeRe
 		}
 	}
 
-	if(EdgeTable[0].y == EdgeTable[1].y)
+	if (EdgeTable[0].y == EdgeTable[1].y)
 	{
-		if(EdgeTable[0].xmin > EdgeTable[1].xmin)
+		if (EdgeTable[0].xmin > EdgeTable[1].xmin)
 		{
 			EdgeRecord temp = EdgeTable[0];
 			EdgeTable[0] = EdgeTable[1];
 			EdgeTable[1] = temp;
 		}
 	}
-	if(EdgeTable[1].y == EdgeTable[2].y)
+	if (EdgeTable[1].y == EdgeTable[2].y)
 	{
-		if(EdgeTable[1].xmin > EdgeTable[2].xmin)
+		if (EdgeTable[1].xmin > EdgeTable[2].xmin)
 		{
 			EdgeRecord temp = EdgeTable[1];
 			EdgeTable[1] = EdgeTable[2];
@@ -167,7 +167,7 @@ CRasterizer::~CRasterizer()
 {
 }
 
-void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, float (*screen)[480])
+void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, BYTE (*screen)[640][3],float (*zBuff)[640],char color)
 {
 	EdgeRecord ETable[3];	//ETable[0]: lowest y entry ~ Etable[3]: highest y entry
 	EdgeRecord e1, e2, e3;
@@ -176,11 +176,19 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, float (*screen)[
 	e3 = makeEdge(p3, p1);	// e3: p3~p1
 	initEdgeTable(ETable, e1, e2, e3);
 
+<<<<<<< HEAD
 //	printEdgeTable(ETable);	//debug
 	float topmostY = max(p1.y, p2.y);
 	topmostY = max(topmostY, p3.y);
 	int topmosty = myRound(topmostY);
 //	std::cout << topmosty << "\n";	//debug
+=======
+	//printEdgeTable(ETable);
+	float topmostY = max(p1.y, p2.y);
+	topmostY = max(topmostY, p3.y);
+	int topmosty = myRound(topmostY);
+	//	std::cout << topmosty << "\n";
+>>>>>>> origin/master
 	int fromx, tox;
 	int fidx, tidx;
 	fidx = 0;
@@ -193,10 +201,16 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, float (*screen)[
 		else fromx = myRound(ETable[fidx].xmin + fcnt * ETable[fidx].incr);
 		if (1 / ETable[tidx].incr == 0) tox = myRound(ETable[tidx].xmin);
 		else tox = myRound(ETable[tidx].xmin + tcnt * ETable[tidx].incr);
+<<<<<<< HEAD
 //		std::cout << "from " << fromx << " to " << tox << "/idx: " << fidx << ", " << tidx << "\n";	// debug
+=======
+		//std::cout << "from " << fromx << " to " << tox << "/idx: " << fidx << ", " << tidx << "\n";	// debug
+>>>>>>> origin/master
 		for (int x = fromx; x <= tox; x++)
 		{
-			screen[x][y] = 1.;
+			screen[y][x][0] = color;
+			screen[y][x][1] = color;
+			screen[y][x][2] = color;
 		}
 		if (y == ETable[fidx].ymax)
 		{

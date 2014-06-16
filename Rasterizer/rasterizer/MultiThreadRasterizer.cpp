@@ -12,7 +12,8 @@ CMultiThreadRasterizer::CMultiThreadRasterizer()
 
 CMultiThreadRasterizer::~CMultiThreadRasterizer()
 {
-	if(m_bThreadRun)  DeleteRasterizerThreads();
+	//if(m_bThreadRun)  
+	//DeleteRasterizerThreads();
 
 	DeleteCriticalSection(&m_CS);
 }
@@ -25,17 +26,20 @@ void CMultiThreadRasterizer::CreateRasterizerThreads(int numofthreads)//numofthr
 	printf("create %d threads...\n",m_nThreadNum);
 	m_pEvents = new HANDLE[m_nThreadNum];
 	m_pEndEvents = new HANDLE[m_nThreadNum];
+	m_pKillEvents = new HANDLE[m_nThreadNum];
 
-	for (int i = 0; i < numofthreads; i++)
+	m_bThreadRun = true;
+	for (int i = 0; i < m_nThreadNum; i++)
 	{
-		m_bThreadRun = true;
+		
 		m_pEvents[i] = CreateEvent(NULL, false, false, NULL);
 		m_pEndEvents[i] = CreateEvent(NULL, false, false, NULL);
+		m_pKillEvents[i] = CreateEvent(NULL, false, false, NULL);
 
 	}
 //	m_pThreads = new std::thread[m_nThreadNum];
 
-	for (int i = 0; i < numofthreads; i++)
+	for (int i = 0; i < m_nThreadNum; i++)
 	{
 		m_pThreads[i] = std::thread(&CMultiThreadRasterizer::ThreadFunction, this,i);
 		m_pThreads[i].detach();
@@ -43,6 +47,7 @@ void CMultiThreadRasterizer::CreateRasterizerThreads(int numofthreads)//numofthr
 }
 void CMultiThreadRasterizer::DeleteRasterizerThreads()//스레드 모두 삭제
 {
+	printf("THREAD DELETE START\n");
 	m_bThreadRun = false;
 	for (int i = 0; i < m_nThreadNum; i++)
 	{
@@ -50,15 +55,18 @@ void CMultiThreadRasterizer::DeleteRasterizerThreads()//스레드 모두 삭제
 		SetEvent(m_pEvents[i]);
 	}
 	
-	WaitForMultipleObjects(m_nThreadNum, m_pEndEvents, true, INFINITE);
-
+	WaitForMultipleObjects(m_nThreadNum, m_pKillEvents, true, INFINITE);
+	Sleep(1000);
 	for (int i = 0; i < m_nThreadNum; i++)
 	{
 		CloseHandle(m_pEvents[i]);
 		CloseHandle(m_pEndEvents[i]);
+		CloseHandle(m_pKillEvents[i]);
 	}
 	delete m_pEvents;
 	delete m_pEndEvents;
+	delete m_pKillEvents;
+	printf("THREAD DELETE END\n");
 
 
 }
@@ -69,13 +77,13 @@ void CMultiThreadRasterizer::SetBinningValue(int row, int col){//binning크기에 �
 }
 void CMultiThreadRasterizer::InvokeRasterizerThreads(){//thread wakeup
 	
-	printf("hi!!!!!!1\n");
+	//printf("THREAD INVOKE\n");
 	//reset ZBUFFER
-	for (int i = 0; i < 480; i++)
+	//for (int i = 0; i < 480; i++)
 	{
-		for (int j = 0; j < 640; j++)
+	//	for (int j = 0; j < 640; j++)
 		{
-			m_fZBuffer[i][j] = FLT_MAX;
+			//m_fZBuffer[i][j] = FLT_MAX;
 		}
 		
 	}
@@ -97,6 +105,8 @@ void CMultiThreadRasterizer::WaitForRasterizerThreads(){//thread작업끝날때까지 �
 inline int myRound(const float a) { return int(a + 0.5); }
 
 
+
+
 void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 	
 	printf("Thread Created(ID : %d) \n", id);
@@ -106,7 +116,10 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 
 	__POINT3D p1, p2, p3;
 	float maxX, minX, maxY, minY;
+	//int maxX, minX, maxY, minY;
 	float aa, bb, cc, dd;
+	//int aa, bb, cc;// , dd;
+	//float dd;
 	int myFinger;
 	int XSizeOfBin = 640/m_nBinColCnt;
 	int YSizeOfBin = 480/m_nBinRowCnt;
@@ -114,11 +127,14 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 	int YStartOfBin;
 	int XEndOfBin;
 	int YEndOfBin;
-	printf("bin size : %d, %d\n", XSizeOfBin, YSizeOfBin);
+	//printf("bin size : %d, %d\n", XSizeOfBin, YSizeOfBin);
 	int nTotalBinSize = m_nBinColCnt*m_nBinRowCnt;
+	//int Y1, Y2, Y3, X1, X2, X3;
+	float* myZBuffer;
+	myZBuffer = new float[XSizeOfBin*YSizeOfBin];
+	//printf("%d-1\n", id);
+	CRasterizer myScanLineRasterizer;
 
-	printf("%d-1\n", id);
-	
 	while (1)
 	{
 		
@@ -140,6 +156,7 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 			LeaveCriticalSection(&m_CS);
 
 			//printf("thread %d get %d\n", id, myFinger);
+
 			if (myFinger >= m_nBinRowCnt*m_nBinColCnt)
 			{
 				SetEvent(m_pEndEvents[id]);
@@ -149,7 +166,7 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 			
 			int myRow = myFinger / m_nBinColCnt;
 			int myCol = myFinger % m_nBinColCnt;
-			printf("thread %d is process on (%d,%d)binnning...\n", myRow, myCol);
+			//printf("thread %d is process on (%d,%d)binnning...\n",id, myRow, myCol);
 			/*
 			
 			(xStartOfBin,Ystartofbin) aaa ... aaaaaaaaaaaaaaaa (xEndOfBin-1,Ystartofbin)
@@ -163,27 +180,27 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 			YStartOfBin = myRow * YSizeOfBin;
 			XEndOfBin = XStartOfBin + XSizeOfBin;
 			YEndOfBin = YStartOfBin + YSizeOfBin;
-			printf("thread %d get bin from (%d,%d) to (%d,%d)\n",id, XStartOfBin, YStartOfBin, XEndOfBin, YEndOfBin);
+			//printf("thread %d get bin from (%d,%d) to (%d,%d)\n",id, XStartOfBin, YStartOfBin, XEndOfBin, YEndOfBin);
 			bool hit = false;
 			char mode = 0;
 			bool bIsInside;
 			//char cnt;
+			for (int i = 0; i < XSizeOfBin*YSizeOfBin; i++) myZBuffer[i] = FLT_MAX;
 
-			printf("nuofface in threqd : %d\n", m_nNumOfFace);
-			int hello_ = 0;
+			//printf("nuofface in threqd : %d\n", m_nNumOfFace);
+			//int hello_ = 0;
 			for (int i = 0; i < m_nNumOfFace; i++)
 			{
+
 				if (m_pFace[i].bisBackFace) continue;
-				hello_++;
+				//printf("%d/", i);
+				
 			//	if (i>900)
 				//printf("face %d color is :%d\n",i, m_pFace[i].nColor);
 				a = m_pFace[i].VertexIndex[0];//objData->faceList[i]->vertex_index[0];
 				b = m_pFace[i].VertexIndex[1];//objData->faceList[i]->vertex_index[1];
 				c = m_pFace[i].VertexIndex[2];//objData->faceList[i]->vertex_index[2];
-
-
-
-
+				
 				p1.x = m_pVertex[a].x;
 				p1.y = m_pVertex[a].y;
 				p1.z = m_pVertex[a].z;
@@ -195,6 +212,7 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 				p3.x = m_pVertex[c].x;
 				p3.y = m_pVertex[c].y;
 				p3.z = m_pVertex[c].z;
+				
 
 
 
@@ -213,30 +231,30 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 				minY = min(p1.y, p2.y);
 				minY = min(minY, p3.y);
 
-				bIsInside = false;
+				//bIsInside = false;
 				//cnt = 0;
 
-				//if (XStartOfBin <= maxX && minX < XEndOfBin && YStartOfBin <= maxY && minY < YEndOfBin) bIsInside = true;
+				if (XStartOfBin > maxX || minX >= XEndOfBin || YStartOfBin > maxY || minY >= YEndOfBin) continue;
 				//if (Hfrom <= maxY && minY < Hto) bIsInside = true;
-
-				//if (!bIsInside) continue;
 
 				
 
-
+				
+				myScanLineRasterizer.Launch(p1, p2, p3, m_pScreenBuffer, m_fZBuffer, m_pFace[i].nColor);
+				/*
 				float k1, k2, k3, k4, k5, k6, k7, k8;
-
+				
 				k1 = p1.x*p2.y - p2.x*p1.y + (p2.x - p1.x)*(myRound(minY) - 2);
 				k2 = p2.x*p3.y - p3.x*p2.y + (p3.x - p2.x)*(myRound(minY) - 2);
 				k3 = p3.x*p1.y - p1.x*p3.y + (p1.x - p3.x)*(myRound(minY) - 2);
-
+				k4 = (pFace[i].NormVec.y *p3.y + pFace[i].NormVec.x*p3.x) / pFace[i].NormVec.z + p3.z;
 				//isDraw = false;
-				for (int y = myRound(minY) - 1; y < myRound(maxY) + 1; y++)
+				for (int y = myRound(minY)-1; y < myRound(maxY)+1; y++)
 				{
 					k1 += (p2.x - p1.x);
 					k2 += (p3.x - p2.x);
 					k3 += (p1.x - p3.x);
-
+					//k5 += 
 					hit = false;
 					if (y < YStartOfBin) continue;
 					if (y >= YEndOfBin) break;
@@ -246,12 +264,14 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 					bb = k2 + (p2.y - p3.y) * (myRound(minX) - 2);
 					cc = k3 + (p3.y - p1.y) * (myRound(minX) - 2);
 
-					for (int x = myRound(minX) - 1; x < myRound(maxX) + 1; x++)
+					for (int x = myRound(minX)-1; x < myRound(maxX)+1; x++)
 					{
-
+						
 						aa += (p1.y - p2.y);
 						bb += (p2.y - p3.y);
 						cc += (p3.y - p1.y);
+						if (x < XStartOfBin) continue;
+						if (x >= XEndOfBin) break;
 						//aa = (p1.y - p2.y)*x + (p2.x - p1.x)*y + p1.x*p2.y - p2.x*p1.y;
 						//   = p1.y*x - p2.y*x + p2.x*y - p1.x*y + p1.x*p2.y - p2.x*p1.y;
 
@@ -262,19 +282,20 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 						//   = p3.y*x - p1.y*x + p1.x*y - p3.x*y + p3.x*p1.y - p1.x*p3.y;
 						if (aa < 0 && bb < 0 && cc < 0)
 						{
-							if (x < 0 || XEndOfBin <= x || y < YStartOfBin || YEndOfBin <= y) continue;
+							
 							hit = true;
-							dd = (pFace[i].NormVec.x*(x - p3.x) + pFace[i].NormVec.y*(y - p3.y)) / (-pFace[i].NormVec.z) + p3.z;
+							//dd = (pFace[i].NormVec.x*(x - p3.x) + pFace[i].NormVec.y*(y - p3.y)) / (-pFace[i].NormVec.z) + p3.z;
+							dd = k4 - pFace[i].NormVec.x / pFace[i].NormVec.z*x - pFace[i].NormVec.y / pFace[i].NormVec.z*y;
 
-
-							if (dd < m_fZBuffer[y][x])
+							if (dd < myZBuffer[(y - YStartOfBin)*XSizeOfBin + (x - XStartOfBin)])//m_fZBuffer[y][x])//
 							{
 
 								//drawPixelColor(x, y, pFace[i].nColor);
-								m_pScreenBuffer[y][x][0] = 255;//m_pFace[i].nColor;
-								m_pScreenBuffer[y][x][1] = 0;
-								m_pScreenBuffer[y][x][2] = 0;
-								m_fZBuffer[y][x] = dd;
+								m_pScreenBuffer[y][x][0] = m_pFace[i].nColor;
+								m_pScreenBuffer[y][x][1] = m_pFace[i].nColor;;
+								m_pScreenBuffer[y][x][2] = m_pFace[i].nColor;;
+								//m_fZBuffer[y][x] = dd;
+								myZBuffer[(y - YStartOfBin)*XSizeOfBin + (x - XStartOfBin)] = dd;
 								///isDraw = true;
 							}
 
@@ -290,20 +311,25 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 
 					}
 				}
+				*/
+				//hello_++;
 				//if (!isDraw){
 				//	cnt++;
 					//printf("%d(%d,%d) is not drawing : %.2f,%.2f/%.2f,%.2f/%.2f,%.2f\n", id,Hfrom,Hto,p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
 			//	}
+			
 
 			}
-			printf("thread proc : %d\n", hello_);
+		//	printf("thread proc : %d\n", hello_);
 		}
 		//printf("%d  skip %d total : %d\n", id,cnt,totalcnt);
 
 
 	}
+	delete myZBuffer;
 	printf("Thread Kill(ID : %d) \n", id);
-	SetEvent(m_pEndEvents[id]);
+	
+	SetEvent(m_pKillEvents[id]);
 }
 
 void CMultiThreadRasterizer::Rasterizer(){//rasterizer 함수
