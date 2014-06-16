@@ -1031,12 +1031,28 @@ void keyboard( unsigned char key, int x, int y)
 	display();
 }
 
+float screen[640][480];
 int main( int argc, char** argv)
 {
-
-	
-
-	
+	/*
+	_POINT3D p1, p2, p3;
+	p1.x = 2; p1.y = 15;
+	p2.x = 5; p2.y = 4;
+	p3.x = 13; p3.y = 6;
+	p1.z = p2.z = p3.z = p1.w = p2.w = p3.w = 1;
+//	Rasterizer.Launch(p1, p2, p3, screen);
+	int xsize = 30;
+	int ysize = 20;
+	for (int y = ysize; y > 0; y--)
+	{
+		for (int x = 1; x <= xsize; x++)
+		{
+			std::cout << screen[x][y] << " ";
+		}
+		std::cout << "\n";
+	}
+	while (1){}
+	*/
 	initilize();
 
 	glutInit( &argc, argv );
@@ -1050,6 +1066,7 @@ int main( int argc, char** argv)
 	glutKeyboardFunc( keyboard );
 	glutMotionFunc( motion );
 	glutMainLoop();
+
 	return 0; 
 }
 
