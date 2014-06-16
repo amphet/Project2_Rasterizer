@@ -167,7 +167,7 @@ CRasterizer::~CRasterizer()
 {
 }
 
-void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, BYTE (*screen)[640][3],float (*zBuff)[640],char color)
+void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, BYTE (*screen)[640][3],float (*zBuff)[640],char color)
 {
 	EdgeRecord ETable[3];	//ETable[0]: lowest y entry ~ Etable[3]: highest y entry
 	EdgeRecord e1, e2, e3;
@@ -188,6 +188,8 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, BYTE (*screen)[6
 	tidx = 1;
 	int fcnt, tcnt;	// from and to counter
 	fcnt = tcnt = 0;
+	float dd;
+
 	for (int y = ETable[0].y; y <= topmosty; y++)
 	{
 //		if (1 / ETable[fidx].incr == 0) fromx = myRound(ETable[fidx].xmin);
@@ -198,9 +200,16 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, BYTE (*screen)[6
 
 		for (int x = fromx; x <= tox; x++)
 		{
-			screen[y][x][0] = color;
-			screen[y][x][1] = color;
-			screen[y][x][2] = color;
+			dd = (Norm.x*(x - p3.x) + Norm.y*(y - p3.y)) / (-Norm.z) + p3.z;
+
+			if (dd < zBuff[y][x])
+			{
+				screen[y][x][0] = color;
+				screen[y][x][1] = color;
+				screen[y][x][2] = color;
+				zBuff[y][x] = dd;
+			}
+			
 		}
 		if (y == myRound(ETable[fidx].ymax))
 		{

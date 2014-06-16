@@ -79,11 +79,11 @@ void CMultiThreadRasterizer::InvokeRasterizerThreads(){//thread wakeup
 	
 	//printf("THREAD INVOKE\n");
 	//reset ZBUFFER
-	//for (int i = 0; i < 480; i++)
+	for (int i = 0; i < 480; i++)
 	{
-	//	for (int j = 0; j < 640; j++)
+		for (int j = 0; j < 640; j++)
 		{
-			//m_fZBuffer[i][j] = FLT_MAX;
+			m_fZBuffer[i][j] = FLT_MAX;
 		}
 		
 	}
@@ -130,8 +130,8 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 	//printf("bin size : %d, %d\n", XSizeOfBin, YSizeOfBin);
 	int nTotalBinSize = m_nBinColCnt*m_nBinRowCnt;
 	//int Y1, Y2, Y3, X1, X2, X3;
-	float* myZBuffer;
-	myZBuffer = new float[XSizeOfBin*YSizeOfBin];
+	//float* myZBuffer;
+//	myZBuffer = new float[XSizeOfBin*YSizeOfBin];
 	//printf("%d-1\n", id);
 	CRasterizer myScanLineRasterizer;
 
@@ -185,7 +185,7 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 			char mode = 0;
 			bool bIsInside;
 			//char cnt;
-			for (int i = 0; i < XSizeOfBin*YSizeOfBin; i++) myZBuffer[i] = FLT_MAX;
+			//for (int i = 0; i < XSizeOfBin*YSizeOfBin; i++) myZBuffer[i] = FLT_MAX;
 
 			//printf("nuofface in threqd : %d\n", m_nNumOfFace);
 			//int hello_ = 0;
@@ -240,7 +240,7 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 				
 
 				
-				myScanLineRasterizer.Launch(p1, p2, p3, m_pScreenBuffer, m_fZBuffer, m_pFace[i].nColor);
+				myScanLineRasterizer.Launch(p1, p2, p3,m_pFace[i].NormVec, m_pScreenBuffer, m_fZBuffer, m_pFace[i].nColor);
 				/*
 				float k1, k2, k3, k4, k5, k6, k7, k8;
 				
@@ -326,7 +326,7 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 
 
 	}
-	delete myZBuffer;
+	//delete myZBuffer;
 	printf("Thread Kill(ID : %d) \n", id);
 	
 	SetEvent(m_pKillEvents[id]);
