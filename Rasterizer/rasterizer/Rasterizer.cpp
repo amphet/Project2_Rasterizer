@@ -347,16 +347,7 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, f
 		tox = myRound(ftox);
 		*/
 
-		//		if (1 / ETable[fidx].incr == 0) fromx = myRound(ETable[fidx].xmin);
-		/*else*/
-		//		fromx = myRound(ETable[fidx].xmin + (float)fcnt * ETable[fidx].incr);	// old
-		//fromx = myRound(ETable[fidx].incr*(float)y + ETable[fidx].xmin - ETable[fidx].incr*ETable[fidx].fy);	// new
-		//		if (1 / ETable[tidx].incr == 0) tox = myRound(ETable[tidx].xmin);
-		/*else*/
-		//		tox = myRound(ETable[tidx].xmin + (float)tcnt * ETable[tidx].incr);	// old
-		//tox = myRound(ETable[tidx].incr*(float)y + ETable[tidx].xmin - ETable[tidx].incr*ETable[tidx].fy);	// new
-		//		std::cout << "from " << fromx << " to " << tox << "/idx: " << fidx << ", " << tidx << "\n";	// debug
-		
+	
 		/* debug zone */
 		/*
 		if (fromx > tox)
