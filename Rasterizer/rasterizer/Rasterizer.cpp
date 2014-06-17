@@ -65,9 +65,9 @@ EdgeRecord makeEdge(_POINT3D p1, _POINT3D p2)
 	else
 	{
 		_incr = (p1.x - p2.x) / (p1.y - p2.y);
-//		_xmin += _incr * ((float)_y - min(p1.y, p2.y));	// real?? honntoni?
+		//		_xmin += _incr * ((float)_y - min(p1.y, p2.y));	// real?? honntoni?
 	}
-//	_xmin = myRound(_xmin);
+	//	_xmin = myRound(_xmin);
 	initEdgeRecord(&ret, _y, _xmin, _ymax, _incr, _status);
 	return ret;
 }
@@ -215,7 +215,7 @@ void printEdgeTable(EdgeRecord t[3])
 }
 void printPOINT3D(_POINT3D p)
 {
-	std::cout << "(" << p.x << ", " << p.y << ", " << p.z <<  ")" <<"\n";
+	std::cout << "(" << p.x << ", " << p.y << ", " << p.z << ")" << "\n";
 }
 
 CRasterizer::CRasterizer()
@@ -227,8 +227,17 @@ CRasterizer::~CRasterizer()
 {
 }
 
-void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, float (*zBuff)[640],char color)
+void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, float(*zBuff)[640], char color)
 {
+	int diff1 = abs(p1.y - p2.y);
+	int diff2 = abs(p2.y - p3.y);
+	int diff3 = abs(p3.y - p1.y);
+	if ((diff1 <= 1) && (diff2 <= 1) && (diff3 <= 1))
+	{
+//		std::cout << "this is real\n";
+		return;
+	}
+	
 	EdgeRecord ETable[3];	//ETable[0]: lowest y entry ~ Etable[3]: highest y entry
 	EdgeRecord e1, e2, e3;
 	e1 = makeEdge(p1, p2);	// e1: p1~p2
@@ -236,19 +245,19 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, f
 	e3 = makeEdge(p3, p1);	// e3: p3~p1
 	initEdgeTable(ETable, e1, e2, e3);
 
-//	printEdgeTable(ETable);	//debug
+	//	printEdgeTable(ETable);	//debug
 	float topmostY = max(p1.y, p2.y);
 	topmostY = max(topmostY, p3.y);
 	int topmosty = myRound(topmostY);
-//	std::cout << topmosty << "\n";	//debug
+	//	std::cout << topmosty << "\n";	//debug
 
-	float ffromx, ftox;
+//	float ffromx, ftox;
 	int fromx, tox;
 	int fidx, tidx;
 	fidx = 0;
 	tidx = 1;
-	int fcnt, tcnt;	// from and to counter
-	fcnt = tcnt = 0;
+//	int fcnt, tcnt;	// from and to counter
+//	fcnt = tcnt = 0;
 	float dd;
 
 	/*
@@ -260,27 +269,30 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, f
 
 	for (int y = ETable[0].y; y <= topmosty; y++)
 	{
+		if (m_nY1 <= y) break;
 		/*
 		if (ETable[2].status == HORIZON)
 		{
-			printEdgeTable(ETable);
+		printEdgeTable(ETable);
 		}
 		*/
-		if((float(y) > ETable[fidx].ymax ||
+		if ((float(y) > ETable[fidx].ymax ||
 			float(y) > ETable[tidx].ymax))
 		{
+			if (fidx == 2 || tidx == 2) break;
+			if (float(y) > ETable[2].ymax) break;
 			if (y == myRound(ETable[fidx].ymax))
 			{
 				fidx = 2;
-				fcnt = 0;
+//				fcnt = 0;
 			}
 			else if (y == myRound(ETable[tidx].ymax))
 			{
 				tidx = 2;
-				tcnt = 0;
+//				tcnt = 0;
 			}
-			fcnt++;
-			tcnt++;
+//			fcnt++;
+//			tcnt++;
 
 			/*
 			std::cout << "p1: "; printPOINT3D(p1);
@@ -292,9 +304,13 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, f
 			*/
 			//continue;
 			
-			fromx = myRound(ETable[fidx].incr*(float)(y) + ETable[fidx].xmin - ETable[fidx].incr*ETable[fidx].fy);
-			tox = myRound(ETable[tidx].incr*(float)(y) + ETable[tidx].xmin - ETable[tidx].incr*ETable[tidx].fy);
-			
+			fromx = myRound(ETable[fidx].incr*(float)y+ETable[fidx].xmin - ETable[fidx].incr*ETable[fidx].fy);
+			tox = myRound(ETable[tidx].incr*(float)y+ETable[tidx].xmin - ETable[tidx].incr*ETable[tidx].fy);
+			/*
+			fromx = myRound(ffromx);
+			tox = myRound(ftox);
+			*/
+
 		}
 		else
 		{
@@ -302,6 +318,7 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, f
 			fromx = myRound(ETable[fidx].incr*(float)y + ETable[fidx].xmin - ETable[fidx].incr*ETable[fidx].fy);
 			tox = myRound(ETable[tidx].incr*(float)y + ETable[tidx].xmin - ETable[tidx].incr*ETable[tidx].fy);
 			
+
 			/*
 			ffromx += ETable[fidx].incr;
 			ftox += ETable[tidx].incr;
@@ -314,13 +331,13 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, f
 		float s = (p1.x*p2.y + p2.x*p3.y + p3.x*p1.y - p2.x*p1.y - p3.x*p2.y - p1.x*p3.y) / 2;
 		if(s<1)
 		{
-			int _x = myRound(p1.x);
-			int _y = myRound(p1.y);
-			if(inScreen(_x,_y)){
-				m_pScreen[_y][_x][0] = color;
-				m_pScreen[_y][_x][1] = color;
-				m_pScreen[_y][_x][2] = color;
-			}
+		int _x = myRound(p1.x);
+		int _y = myRound(p1.y);
+		if(inScreen(_x,_y)){
+		m_pScreen[_y][_x][0] = color;
+		m_pScreen[_y][_x][1] = color;
+		m_pScreen[_y][_x][2] = color;
+		}
 		}
 		*/
 		/*
@@ -330,83 +347,86 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, f
 		tox = myRound(ftox);
 		*/
 
-//		if (1 / ETable[fidx].incr == 0) fromx = myRound(ETable[fidx].xmin);
-		/*else*/ 
-//		fromx = myRound(ETable[fidx].xmin + (float)fcnt * ETable[fidx].incr);	// old
+		//		if (1 / ETable[fidx].incr == 0) fromx = myRound(ETable[fidx].xmin);
+		/*else*/
+		//		fromx = myRound(ETable[fidx].xmin + (float)fcnt * ETable[fidx].incr);	// old
 		//fromx = myRound(ETable[fidx].incr*(float)y + ETable[fidx].xmin - ETable[fidx].incr*ETable[fidx].fy);	// new
-//		if (1 / ETable[tidx].incr == 0) tox = myRound(ETable[tidx].xmin);
-		/*else*/ 
-//		tox = myRound(ETable[tidx].xmin + (float)tcnt * ETable[tidx].incr);	// old
+		//		if (1 / ETable[tidx].incr == 0) tox = myRound(ETable[tidx].xmin);
+		/*else*/
+		//		tox = myRound(ETable[tidx].xmin + (float)tcnt * ETable[tidx].incr);	// old
 		//tox = myRound(ETable[tidx].incr*(float)y + ETable[tidx].xmin - ETable[tidx].incr*ETable[tidx].fy);	// new
-//		std::cout << "from " << fromx << " to " << tox << "/idx: " << fidx << ", " << tidx << "\n";	// debug
-		if (y < m_nY0) continue;
-		if (y > m_nY1) break;
+		//		std::cout << "from " << fromx << " to " << tox << "/idx: " << fidx << ", " << tidx << "\n";	// debug
+		
 		/* debug zone */
 		/*
 		if (fromx > tox)
 		{
 
-			float da = ETable[fidx].xmin + (float)fcnt * ETable[fidx].incr;
-			float db = ETable[tidx].xmin + (float)tcnt * ETable[tidx].incr;
-			int x = 2;
-//			printEdgeTable(ETable);
-//			std::cout << "\n" << fromx << "->" << tox << "\n";
+		float da = ETable[fidx].xmin + (float)fcnt * ETable[fidx].incr;
+		float db = ETable[tidx].xmin + (float)tcnt * ETable[tidx].incr;
+		int x = 2;
+		//			printEdgeTable(ETable);
+		//			std::cout << "\n" << fromx << "->" << tox << "\n";
 		}
 		*/
-//		if (ETable[tidx].status == HORIZON) std::cout << "dont do that\n";
+		//		if (ETable[tidx].status == HORIZON) std::cout << "dont do that\n";
 		/*
 		if (fromx > tox)
 		{
-			//int temp = fromx;
-			//fromx = tox;
+		//int temp = fromx;
+		//fromx = tox;
 		}
 		*/
-		for (int x = fromx+1; x <= tox; x++)
+		
+		if (m_nY0 <= y && y < m_nY1)
 		{
-			/* distance check */
-			/*
-			if (calcDistance(x, y, ETable[fidx]) > 1000.0)
+			for (int x = fromx + 1; x <= tox; x++)
 			{
+				/* distance check */
+				/*
+				if (calcDistance(x, y, ETable[fidx]) > 1000.0)
+				{
 				break;
-			}
-			*/
-			/* check end */
+				}
+				*/
+				/* check end */
 
-			if (x < m_nX0) continue;
-			if (x > m_nX1) break;
-			dd = (Norm.x*(x - p3.x) + Norm.y*(y - p3.y)) / (-Norm.z) + p3.z;
+				if (x < m_nX0) continue;
+				if (m_nX1 <= x) break;
+				dd = (Norm.x*(x - p3.x) + Norm.y*(y - p3.y)) / (-Norm.z) + p3.z;
 
-			if (inScreen(x,y) && (dd < zBuff[y][x]))
-			{
-				m_pScreen[y][x][0] = color;
-				m_pScreen[y][x][1] = color;
-				m_pScreen[y][x][2] = color;
-				zBuff[y][x] = dd;
-			}
-			
-			/*debug zone*/
-			/*
-			if (x > 640)
-			{
+				if (/*inScreen(x, y) && */(dd < zBuff[y][x]))
+				{
+					m_pScreen[y][x][0] = color;
+					m_pScreen[y][x][1] = color;
+					m_pScreen[y][x][2] = color;
+					zBuff[y][x] = dd;
+				}
+
+				/*debug zone*/
+				/*
+				if (x > 640)
+				{
 				printEdgeTable(ETable);
 				std::cout << "\n";
+				}
+				*/
+				//if (p1.x > 640) printPOINT3D(p1);
 			}
-			*/
-			//if (p1.x > 640) printPOINT3D(p1);
 		}
 
 		if (y == myRound(ETable[fidx].ymax))
 		{
 			fidx = 2;
-			fcnt = 0;
+//			fcnt = 0;
 		}
 		else if (y == myRound(ETable[tidx].ymax))
 		{
 			tidx = 2;
-			tcnt = 0;
+//			tcnt = 0;
 		}
-		fcnt++;
-		tcnt++;
+//		fcnt++;
+//		tcnt++;
 	}
 
 
