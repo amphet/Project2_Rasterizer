@@ -210,7 +210,7 @@ CRasterizer::~CRasterizer()
 {
 }
 
-void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, BYTE (*screen)[640][3],float (*zBuff)[640],char color)
+void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, float (*zBuff)[640],char color)
 {
 	EdgeRecord ETable[3];	//ETable[0]: lowest y entry ~ Etable[3]: highest y entry
 	EdgeRecord e1, e2, e3;
@@ -240,16 +240,22 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, B
 //		if (1 / ETable[tidx].incr == 0) tox = myRound(ETable[tidx].xmin);
 		/*else*/ tox = myRound(ETable[tidx].xmin + tcnt * ETable[tidx].incr);
 //		std::cout << "from " << fromx << " to " << tox << "/idx: " << fidx << ", " << tidx << "\n";	// debug
+		if (y < m_nY0) continue;
+		if (y > m_nY1) break;
 		
+		
+
 		for (int x = fromx; x <= tox; x++)
 		{
+			if (x < m_nX0) continue;
+			if (x > m_nX1) break;
 			dd = (Norm.x*(x - p3.x) + Norm.y*(y - p3.y)) / (-Norm.z) + p3.z;
 
 			if (inScreen(x,y) && (dd < zBuff[y][x]))
 			{
-				screen[y][x][0] = color;
-				screen[y][x][1] = color;
-				screen[y][x][2] = color;
+				m_pScreen[y][x][0] = color;
+				m_pScreen[y][x][1] = color;
+				m_pScreen[y][x][2] = color;
 				zBuff[y][x] = dd;
 			}
 			

@@ -134,6 +134,8 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 //	myZBuffer = new float[XSizeOfBin*YSizeOfBin];
 	//printf("%d-1\n", id);
 	CRasterizer myScanLineRasterizer;
+	myScanLineRasterizer.SetScreenBufferPtr(m_pScreenBuffer);
+
 
 	while (1)
 	{
@@ -236,11 +238,11 @@ void CMultiThreadRasterizer::ThreadFunction(int id){//스레드 함수
 
 				if (XStartOfBin > maxX || minX >= XEndOfBin || YStartOfBin > maxY || minY >= YEndOfBin) continue;
 				//if (Hfrom <= maxY && minY < Hto) bIsInside = true;
-
+				myScanLineRasterizer.SetBinningSize(XStartOfBin, YStartOfBin, XEndOfBin, YEndOfBin);
 				
 
 				
-				myScanLineRasterizer.Launch(p1, p2, p3,m_pFace[i].NormVec, m_pScreenBuffer, m_fZBuffer, m_pFace[i].nColor);
+				myScanLineRasterizer.Launch(p1, p2, p3,m_pFace[i].NormVec, m_fZBuffer, m_pFace[i].nColor);
 				/*
 				float k1, k2, k3, k4, k5, k6, k7, k8;
 				
