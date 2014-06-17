@@ -17,13 +17,15 @@ enum EdgeRecordStatus
 
 typedef struct _EdgeRecord{
 	int y;
+	float fy;
 	float xmin, ymax, incr;
 	EdgeRecordStatus status;
 } EdgeRecord;
 
-void initEdgeRecord(EdgeRecord *record, int _y, float _xmin, float _ymax, float _incr, EdgeRecordStatus _status)
+void initEdgeRecord(EdgeRecord *record, float _y, float _xmin, float _ymax, float _incr, EdgeRecordStatus _status)
 {
-	record->y = _y;
+	record->y = myRound(_y);
+	record->fy = _y;
 	record->xmin = _xmin;
 	record->ymax = _ymax;
 	record->incr = _incr;
@@ -35,6 +37,7 @@ EdgeRecord makeEdge(_POINT3D p1, _POINT3D p2)
 	int _y;
 	float _xmin, _ymax;
 	float _incr = 0;
+
 	if (p1.y < p2.y)
 	{
 		_y = myRound(p1.y);
@@ -47,6 +50,7 @@ EdgeRecord makeEdge(_POINT3D p1, _POINT3D p2)
 		_xmin = p2.x;
 		_ymax = p1.y;
 	}
+
 	EdgeRecord ret;
 	EdgeRecordStatus _status = NORMAL_EDGE;
 	if (p1.x == p2.x)
@@ -61,8 +65,9 @@ EdgeRecord makeEdge(_POINT3D p1, _POINT3D p2)
 	else
 	{
 		_incr = (p1.x - p2.x) / (p1.y - p2.y);
+//		_xmin += _incr * ((float)_y - min(p1.y, p2.y));	// real?? honntoni?
 	}
-
+//	_xmin = myRound(_xmin);
 	initEdgeRecord(&ret, _y, _xmin, _ymax, _incr, _status);
 	return ret;
 }
@@ -182,6 +187,19 @@ bool inScreen(int x, int y)
 	return isxin && isyin;
 }
 
+float calcDistance(int x, int y, EdgeRecord e)
+{
+	float a = -1;
+	float b = e.incr;
+	float c = e.xmin - ((float)e.y) * e.incr;
+	return abs(((float)x)*a + ((float)y)*b + c) / sqrt(a*a + b*b);
+}
+
+float calcArea(_POINT3D p1, _POINT3D p2, _POINT3D p3)
+{
+	float s = (p1.x*p2.y + p2.x*p3.y + p3.x*p1.y - p2.x*p1.y - p3.x*p2.y - p1.x*p3.y) / 2;
+	return abs(s);
+}
 
 void printEdge(EdgeRecord e)
 {
@@ -198,7 +216,7 @@ void printEdgeTable(EdgeRecord t[3])
 }
 void printPOINT3D(_POINT3D p)
 {
-	std::cout << "(" << p.x << ", " << p.y << ", " << p.z << "\n";
+	std::cout << "(" << p.x << ", " << p.y << ", " << p.z <<  ")" <<"\n";
 }
 
 CRasterizer::CRasterizer()
@@ -225,6 +243,7 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, f
 	int topmosty = myRound(topmostY);
 //	std::cout << topmosty << "\n";	//debug
 
+	//float ffromx, ftox;
 	int fromx, tox;
 	int fidx, tidx;
 	fidx = 0;
@@ -233,20 +252,103 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, f
 	fcnt = tcnt = 0;
 	float dd;
 
+	/*
+	ffromx = myRound(ETable[fidx].incr*(float)ETable[0].y + ETable[fidx].xmin - ETable[fidx].incr*ETable[fidx].fy);
+	ftox = myRound(ETable[tidx].incr*(float)ETable[0].y + ETable[tidx].xmin - ETable[tidx].incr*ETable[tidx].fy);
+	*/
+
 	for (int y = ETable[0].y; y <= topmosty; y++)
 	{
+		if((float(y) > ETable[fidx].ymax ||
+			float(y) > ETable[tidx].ymax))
+		{
+			if (y == myRound(ETable[fidx].ymax))
+			{
+				fidx = 2;
+				fcnt = 0;
+			}
+			else if (y == myRound(ETable[tidx].ymax))
+			{
+				tidx = 2;
+				tcnt = 0;
+			}
+			fcnt++;
+			tcnt++;
+
+			/*
+			std::cout << "p1: "; printPOINT3D(p1);
+			std::cout << "p2: "; printPOINT3D(p2);
+			std::cout << "p3: "; printPOINT3D(p3);
+			std::cout << "s: :" << calcArea(p1, p2, p3) << "\n";
+			std::cout << "\n";
+			continue;
+			*/
+		}
+		/* tiny polygon check */
+		/*
+		float s = (p1.x*p2.y + p2.x*p3.y + p3.x*p1.y - p2.x*p1.y - p3.x*p2.y - p1.x*p3.y) / 2;
+		if(s<1)
+		{
+			int _x = myRound(p1.x);
+			int _y = myRound(p1.y);
+			if(inScreen(_x,_y)){
+				m_pScreen[_y][_x][0] = color;
+				m_pScreen[_y][_x][1] = color;
+				m_pScreen[_y][_x][2] = color;
+			}
+		}
+		*/
+		/*
+		ffromx += ETable[fidx].incr;
+		ftox += ETable[tidx].incr;
+		fromx = myRound(ffromx);
+		tox = myRound(ftox);
+		*/
+
 //		if (1 / ETable[fidx].incr == 0) fromx = myRound(ETable[fidx].xmin);
-		/*else*/ fromx = myRound(ETable[fidx].xmin + fcnt * ETable[fidx].incr);
+		/*else*/ 
+//		fromx = myRound(ETable[fidx].xmin + (float)fcnt * ETable[fidx].incr);	// old
+		//fromx = myRound(ETable[fidx].incr*(float)y + ETable[fidx].xmin - ETable[fidx].incr*ETable[fidx].fy);	// new
+		fromx = myRound(ETable[fidx].incr*(float)y + ETable[fidx].xmin - ETable[fidx].incr*ETable[fidx].fy);
 //		if (1 / ETable[tidx].incr == 0) tox = myRound(ETable[tidx].xmin);
-		/*else*/ tox = myRound(ETable[tidx].xmin + tcnt * ETable[tidx].incr);
+		/*else*/ 
+//		tox = myRound(ETable[tidx].xmin + (float)tcnt * ETable[tidx].incr);	// old
+		//tox = myRound(ETable[tidx].incr*(float)y + ETable[tidx].xmin - ETable[tidx].incr*ETable[tidx].fy);	// new
+		tox = myRound(ETable[tidx].incr*(float)y + ETable[tidx].xmin - ETable[tidx].incr*ETable[tidx].fy);
 //		std::cout << "from " << fromx << " to " << tox << "/idx: " << fidx << ", " << tidx << "\n";	// debug
 		if (y < m_nY0) continue;
 		if (y > m_nY1) break;
-		
-		
+		/* debug zone */
+		/*
+		if (fromx > tox)
+		{
 
+			float da = ETable[fidx].xmin + (float)fcnt * ETable[fidx].incr;
+			float db = ETable[tidx].xmin + (float)tcnt * ETable[tidx].incr;
+			int x = 2;
+//			printEdgeTable(ETable);
+//			std::cout << "\n" << fromx << "->" << tox << "\n";
+		}
+		*/
+//		if (ETable[tidx].status == HORIZON) std::cout << "dont do that\n";
+		/*
+		if (fromx > tox)
+		{
+			//int temp = fromx;
+			//fromx = tox;
+		}
+		*/
 		for (int x = fromx; x <= tox; x++)
 		{
+			/* distance check */
+			/*
+			if (calcDistance(x, y, ETable[fidx]) > 1000.0)
+			{
+				break;
+			}
+			*/
+			/* check end */
+
 			if (x < m_nX0) continue;
 			if (x > m_nX1) break;
 			dd = (Norm.x*(x - p3.x) + Norm.y*(y - p3.y)) / (-Norm.z) + p3.z;

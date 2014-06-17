@@ -1031,7 +1031,7 @@ void keyboard( unsigned char key, int x, int y)
 	display();
 }
 
-float screen[640][480];
+//float screen[640][480];
 int main( int argc, char** argv)
 {
 	/*
