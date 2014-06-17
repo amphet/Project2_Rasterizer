@@ -245,7 +245,7 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, B
 		{
 			dd = (Norm.x*(x - p3.x) + Norm.y*(y - p3.y)) / (-Norm.z) + p3.z;
 
-			if (dd < zBuff[y][x] && inScreen(x,y))
+			if (inScreen(x,y) && (dd < zBuff[y][x]))
 			{
 				screen[y][x][0] = color;
 				screen[y][x][1] = color;
@@ -266,12 +266,12 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, B
 		if (y == myRound(ETable[fidx].ymax))
 		{
 			fidx = 2;
-			fcnt = -1;
+			fcnt = 0;
 		}
 		else if (y == myRound(ETable[tidx].ymax))
 		{
 			tidx = 2;
-			tcnt = -1;
+			tcnt = 0;
 		}
 		fcnt++;
 		tcnt++;
