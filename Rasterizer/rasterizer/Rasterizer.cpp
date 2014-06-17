@@ -58,7 +58,7 @@ EdgeRecord makeEdge(_POINT3D p1, _POINT3D p2)
 		_status = VERTICAL;
 		_incr = 0;
 	}
-	else if (p1.y == p2.y)
+	else if (myRound(p1.y) == myRound(p2.y))
 	{
 		_status = HORIZON;
 	}
@@ -176,7 +176,6 @@ void initEdgeTable(EdgeRecord EdgeTable[3], EdgeRecord e1, EdgeRecord e2, EdgeRe
 		EdgeRecord temp = EdgeTable[1];
 		EdgeTable[1] = EdgeTable[2];
 		EdgeTable[2] = temp;
-
 	}
 }
 
@@ -243,7 +242,7 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, f
 	int topmosty = myRound(topmostY);
 //	std::cout << topmosty << "\n";	//debug
 
-	//float ffromx, ftox;
+	float ffromx, ftox;
 	int fromx, tox;
 	int fidx, tidx;
 	fidx = 0;
@@ -253,12 +252,20 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, f
 	float dd;
 
 	/*
-	ffromx = myRound(ETable[fidx].incr*(float)ETable[0].y + ETable[fidx].xmin - ETable[fidx].incr*ETable[fidx].fy);
-	ftox = myRound(ETable[tidx].incr*(float)ETable[0].y + ETable[tidx].xmin - ETable[tidx].incr*ETable[tidx].fy);
+	ffromx = (ETable[fidx].incr*(float)ETable[0].y + ETable[fidx].xmin - ETable[fidx].incr*ETable[fidx].fy);
+	ftox = (ETable[tidx].incr*(float)ETable[0].y + ETable[tidx].xmin - ETable[tidx].incr*ETable[tidx].fy);
+	fromx = myRound(ffromx);
+	ftox = myRound(ftox);
 	*/
 
 	for (int y = ETable[0].y; y <= topmosty; y++)
 	{
+		/*
+		if (ETable[2].status == HORIZON)
+		{
+			printEdgeTable(ETable);
+		}
+		*/
 		if((float(y) > ETable[fidx].ymax ||
 			float(y) > ETable[tidx].ymax))
 		{
@@ -282,6 +289,24 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, f
 			std::cout << "s: :" << calcArea(p1, p2, p3) << "\n";
 			std::cout << "\n";
 			continue;
+			*/
+			//continue;
+			
+			fromx = myRound(ETable[fidx].incr*(float)(y) + ETable[fidx].xmin - ETable[fidx].incr*ETable[fidx].fy);
+			tox = myRound(ETable[tidx].incr*(float)(y) + ETable[tidx].xmin - ETable[tidx].incr*ETable[tidx].fy);
+			
+		}
+		else
+		{
+			
+			fromx = myRound(ETable[fidx].incr*(float)y + ETable[fidx].xmin - ETable[fidx].incr*ETable[fidx].fy);
+			tox = myRound(ETable[tidx].incr*(float)y + ETable[tidx].xmin - ETable[tidx].incr*ETable[tidx].fy);
+			
+			/*
+			ffromx += ETable[fidx].incr;
+			ftox += ETable[tidx].incr;
+			fromx = myRound(ffromx);
+			tox = myRound(ftox);
 			*/
 		}
 		/* tiny polygon check */
@@ -309,12 +334,10 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, f
 		/*else*/ 
 //		fromx = myRound(ETable[fidx].xmin + (float)fcnt * ETable[fidx].incr);	// old
 		//fromx = myRound(ETable[fidx].incr*(float)y + ETable[fidx].xmin - ETable[fidx].incr*ETable[fidx].fy);	// new
-		fromx = myRound(ETable[fidx].incr*(float)y + ETable[fidx].xmin - ETable[fidx].incr*ETable[fidx].fy);
 //		if (1 / ETable[tidx].incr == 0) tox = myRound(ETable[tidx].xmin);
 		/*else*/ 
 //		tox = myRound(ETable[tidx].xmin + (float)tcnt * ETable[tidx].incr);	// old
 		//tox = myRound(ETable[tidx].incr*(float)y + ETable[tidx].xmin - ETable[tidx].incr*ETable[tidx].fy);	// new
-		tox = myRound(ETable[tidx].incr*(float)y + ETable[tidx].xmin - ETable[tidx].incr*ETable[tidx].fy);
 //		std::cout << "from " << fromx << " to " << tox << "/idx: " << fidx << ", " << tidx << "\n";	// debug
 		if (y < m_nY0) continue;
 		if (y > m_nY1) break;
@@ -338,7 +361,7 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, f
 			//fromx = tox;
 		}
 		*/
-		for (int x = fromx; x <= tox; x++)
+		for (int x = fromx+1; x <= tox; x++)
 		{
 			/* distance check */
 			/*
@@ -371,6 +394,7 @@ void CRasterizer::Launch(_POINT3D p1, _POINT3D p2, _POINT3D p3, _POINT3D Norm, f
 			*/
 			//if (p1.x > 640) printPOINT3D(p1);
 		}
+
 		if (y == myRound(ETable[fidx].ymax))
 		{
 			fidx = 2;
